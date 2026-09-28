@@ -1,10 +1,10 @@
-# InteractiveBOM Suite V1.0.00
+# InteractiveBOM Suite V1.0.01
 
 Altium Designer 交互式 BOM / 原理图一站式导出套件。基于
 [InteractiveHtmlBomForAD](https://github.com/lianlian33/InteractiveHtmlBomForAD)
 （[InteractiveHtmlBom](https://github.com/openscopeproject/InteractiveHtmlBom) 的 AD10 移植版）
 深度定制升级，与最初版本相比新增原理图导出、4K 适配、网络名标注、xlsx BOM 等
-大量功能，详见《版本更新说明_V1.0.00.md》。
+大量功能，详见《版本更新说明_V1.0.01.md》。
 
 ### 安装和使用 Installation and Usage 
  1. 运行一次 Initialize.bat（自动生成 rootPath.js，并拼接出 dist\InteractiveBOMSuite.js）。

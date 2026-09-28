@@ -391,6 +391,23 @@ function renderLayerToImage(layer, width, height) {
   return canvas.toDataURL("image/png");
 }
 
+// ---------------------------------------------------------------------------
+// Silkscreen -> PDF export
+//
+// The PDF is written by hand for the same reason the .xlsx above is: this page
+// is a single offline file and cannot fetch a PDF library. Keeping the file to
+// nothing but JPEG image streams (DCTDecode) and a page tree makes that small
+// enough to do from scratch. Even the sheet caption is drawn into the canvas
+// before encoding, so no font object appears anywhere in the file.
+//
+// The old approach opened a blank tab with the two sheets and fired
+// window.print(), expecting the browser dialog's "Save as PDF" destination.
+// That chain broke too often - the dialog never appearing, embedded browsers
+// without a working print pipeline - and left the user stranded on a bare
+// about:blank page. The button now produces the PDF itself and hands it to the
+// same "Save as" helper the BOM export uses.
+// ---------------------------------------------------------------------------
+
 function printSilkscreen() {
   try {
     var bbox = applyRotation(pcbdata.edges_bbox);
@@ -402,66 +419,107 @@ function printSilkscreen() {
     var scale = Math.min(maxW / bw, maxH / bh);
     var imgW = Math.round(bw * scale);
     var imgH = Math.round(bh * scale);
-    function renderOne(layer) {
-      var canvas = document.createElement("canvas");
-      canvas.width = imgW; canvas.height = imgH;
-      var ld = { transform: { x: 0, y: 0, s: 1, panx: 0, pany: 0, zoom: 1 }, bg: canvas, fab: canvas, silk: canvas, highlight: canvas, layer: layer };
-      recalcLayerScale(ld, imgW, imgH);
+    // One layer per A4 sheet. The caption lives in a band above the board so
+    // the drawing can never run under the text, and it is drawn with canvas
+    // text - embedding a PDF font would be the only non-image content otherwise.
+    function renderOne(layer, label) {
+      var capH = Math.max(48, Math.round(imgH * 0.03));
+      var board = document.createElement("canvas");
+      board.width = imgW;
+      board.height = imgH - capH;
+      var ld = { transform: { x: 0, y: 0, s: 1, panx: 0, pany: 0, zoom: 1 }, bg: board, fab: board, silk: board, highlight: board, layer: layer };
+      recalcLayerScale(ld, imgW, imgH - capH);
       prepareLayer(ld);
-      clearCanvas(canvas, "#ffffff");
+      clearCanvas(board, "#ffffff");
       drawBackground(ld, false);
-      return canvas.toDataURL("image/png");
+      var out = document.createElement("canvas");
+      out.width = imgW;
+      out.height = imgH;
+      var ctx = out.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, imgW, imgH);
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold " + Math.max(24, Math.round(capH * 0.55)) + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, imgW / 2, capH / 2);
+      ctx.drawImage(board, 0, capH);
+      // JPEG (not PNG): DCTDecode lets the PDF embed the bytes as-is.
+      return out.toDataURL("image/jpeg", 0.92);
     }
-    var imgF = renderOne("F");
-    var imgB = renderOne("B");
     var title = pcbdata.metadata.title || "Silkscreen";
-    // One layer per sheet, scaled down until it fits.
-    //
-    // The sheet is declared as A4 with a 10mm margin a few lines below, so the box
-    // the printer can actually use is known exactly: 190x277mm portrait,
-    // 277x190mm landscape. The page gets that box, the caption gets a fixed slice
-    // of it, and the image gets the rest as an absolute millimetre height. Capping
-    // the image at 100% of that box in *both* directions is what does the scaling:
-    // an image that is too big is letterboxed inside its box, never split across
-    // sheets.
-    //
-    // Every measurement here is absolute. Do not replace them with percentages
-    // resolved against a flex-derived height - that indirection is exactly what
-    // print engines disagree about.
-    //
-    // And never go back to a fixed max-height *on the image*, which is what this
-    // replaced: the rule used to be `max-height: 250mm`, right for portrait and
-    // 60mm too tall for landscape, so the board ran past the bottom of every sheet
-    // and came out sliced - F and B sprawling over five pages. No single figure can
-    // be correct for both orientations; a box that is derived from the paper can.
-    var PAGE_MARGIN_MM = 10;
-    var A4_MM = landscape ? [297, 210] : [210, 297];
-    var sheetW = A4_MM[0] - 2 * PAGE_MARGIN_MM;
-    // 1mm short of the printable height: a block that measures exactly the page
-    // height can round over and spill a blank sheet after every layer.
-    var sheetH = A4_MM[1] - 2 * PAGE_MARGIN_MM - 1;
-    // The caption's slice. A fixed figure rather than a measured one, so that the
-    // image box below stays absolute. printtest.js asserts the caption as styled
-    // really fits inside it.
-    var CAPTION_MM = 9;
-    var imgH = sheetH - CAPTION_MM;
-    var w = window.open("", "_blank");
-    w.document.write('<html><head><meta charset="utf-8"><title>' + title + '</title><style>');
-    w.document.write('@page { size: A4 ' + (landscape ? 'landscape' : 'portrait') + '; margin: ' + PAGE_MARGIN_MM + 'mm; }');
-    w.document.write('html, body { margin: 0; padding: 0; }');
-    w.document.write('.page { width: ' + sheetW + 'mm; height: ' + sheetH + 'mm; page-break-inside: avoid; break-inside: avoid; page-break-after: always; }');
-    w.document.write('.page:last-child { page-break-after: auto; }');
-    w.document.write('.page h3 { margin: 0 0 2mm 0; text-align: center; font: normal 4mm/1.4 sans-serif; }');
-    w.document.write('.printimg { width: ' + sheetW + 'mm; height: ' + imgH + 'mm; display: flex; align-items: center; justify-content: center; }');
-    w.document.write('.printimg img { max-width: 100%; max-height: 100%; object-fit: contain; }');
-    w.document.write('</style></head><body>');
-    w.document.write('<div class="page"><h3>' + title + ' - Top (F)</h3><div class="printimg"><img src="' + imgF + '"></div></div>');
-    w.document.write('<div class="page"><h3>' + title + ' - Bottom (B)</h3><div class="printimg"><img src="' + imgB + '"></div></div>');
-    w.document.write('</body></html>');
-    // Register the handler *before* close(): close() queues the load event, and a
-    // handler attached afterwards can miss it.
-    w.onload = function() { w.focus(); w.print(); };
-    w.document.close();
+    var layers = [
+      { layer: "F", label: title + " - Top (F)" },
+      { layer: "B", label: title + " - Bottom (B)" },
+    ];
+    for (var i = 0; i < layers.length; i++) {
+      layers[i].jpeg = atob(renderOne(layers[i].layer, layers[i].label).split(",")[1]);
+      layers[i].w = imgW;
+      layers[i].h = imgH;
+    }
+    // A4 in PostScript points (1mm = 72/25.4pt) with the same 10mm margins the
+    // printed sheet used.
+    var PW = landscape ? 841.89 : 595.28;
+    var PH = landscape ? 595.28 : 841.89;
+    var M = 28.35;
+    var n = layers.length;
+    var chunks = [];
+    var offset = 0;
+    var offsets = [];
+    function push(s) { chunks.push(s); offset += s.length; }
+    // Header comment bytes are >127 on purpose: they mark the file as binary
+    // so line-ending translation must leave it alone.
+    push("%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n");
+    // Object layout: 1 = catalog, 2 = page tree, then per sheet a page object,
+    // its content stream and its image xobject at 3+i*3, +1 and +2.
+    offsets[1] = offset;
+    push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+    var kids = [];
+    for (var i = 0; i < n; i++) kids.push((3 + i * 3) + " 0 R");
+    offsets[2] = offset;
+    push("2 0 obj\n<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + n + " >>\nendobj\n");
+    for (var i = 0; i < n; i++) {
+      var im = layers[i];
+      var p = 3 + i * 3;               // page object
+      var c = p + 1;                   // content stream
+      var x = p + 2;                   // image xobject
+      // Letterbox the sheet inside the printable box, centred - an image that
+      // does not match A4's aspect ratio never leaves its page.
+      var fit = Math.min((PW - 2 * M) / im.w, (PH - 2 * M) / im.h);
+      var dw = im.w * fit;
+      var dh = im.h * fit;
+      var dx = ((PW - dw) / 2).toFixed(2);
+      var dy = ((PH - dh) / 2).toFixed(2);
+      var content = "q\n" + dw.toFixed(2) + " 0 0 " + dh.toFixed(2) + " " + dx + " " + dy + " cm\n/Im1 Do\nQ\n";
+      offsets[p] = offset;
+      push(p + " 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + PW + " " + PH + "] /Resources << /XObject << /Im1 " + x + " 0 R >> >> /Contents " + c + " 0 R >>\nendobj\n");
+      offsets[c] = offset;
+      push(c + " 0 obj\n<< /Length " + content.length + " >>\nstream\n" + content + "endstream\nendobj\n");
+      offsets[x] = offset;
+      push(x + " 0 obj\n<< /Type /XObject /Subtype /Image /Width " + im.w + " /Height " + im.h + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + im.jpeg.length + " >>\nstream\n" + im.jpeg + "\nendstream\nendobj\n");
+    }
+    var total = 2 + n * 3;
+    var xrefStart = offset;
+    var xref = "xref\n0 " + (total + 1) + "\n0000000000 65535 f \n";
+    for (var i = 1; i <= total; i++) {
+      xref += ("0000000000" + offsets[i]).slice(-10) + " 00000 n \n";
+    }
+    push(xref);
+    push("trailer\n<< /Size " + (total + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF");
+    // Every char of the joined string is < 256, so it maps 1:1 onto bytes.
+    var whole = chunks.join("");
+    var bytes = new Uint8Array(whole.length);
+    for (var i = 0; i < whole.length; i++) bytes[i] = whole.charCodeAt(i) & 0xff;
+    var mime = "application/pdf";
+    var blob = new Blob([bytes], { type: mime });
+    if (!saveFileAs(xlsxSafeName(title, "Silkscreen") + "-Silkscreen.pdf", blob, {
+      pickerId: "interactivehtmlbom-silkscreen",
+      mime: mime,
+      extension: ".pdf",
+      description: "PDF 文档"
+    })) {
+      alert(DOWNLOAD_FALLBACK_HINT);
+    }
   } catch(e) { alert("错误：" + e.message); }
 }
 

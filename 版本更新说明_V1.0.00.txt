@@ -1,7 +1,7 @@
 InteractiveBOM Suite V1.0.00 版本说明
 
 发布日期：2026-09-25
-基线：InteractiveHtmlBomForAD（master v0.3.16）
+基线：InteractiveHtmlBomForAD（master v0.3.17）
 
 InteractiveBOM Suite 在基线基础上扩展为 BOM / PCB / 原理图一站式交互查看与导出套件。
 

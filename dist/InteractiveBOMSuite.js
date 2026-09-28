@@ -1,4 +1,4 @@
-var CURRENT_PATH = "";
+var CURRENT_PATH = "D:\\AI WORK\\InteractiveBOM-Suite-V1.0.01\\";
 
 //  json2.js
 //  2017-06-12

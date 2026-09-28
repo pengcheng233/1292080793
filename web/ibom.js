@@ -1622,7 +1622,7 @@ function populateMetadata() {
   document.getElementById("stats-smd-pads-total").innerHTML = pads_f + pads_b;
   document.getElementById("stats-th-pads").innerHTML = pads_th;
   // Update version string
-  document.getElementById("github-link").innerHTML = "InteractiveBOM Suite&nbsp;V1.0.00";
+  document.getElementById("github-link").innerHTML = "InteractiveBOM Suite&nbsp;V1.0.01";
 }
 
 // The canvas/BOM split has to start right below the header, and how tall the
