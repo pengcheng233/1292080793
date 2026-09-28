@@ -1,0 +1,1036 @@
+
+/* =========================================================================
+   Apple-style theme for the Interactive HTML BOM (KiCAD)
+   Rewritten visual layer only. Every selector, id and CSS variable the
+   page's JavaScript depends on is preserved verbatim, so all behaviour
+   (PCB canvas rendering, BOM table, drag/resize, menus, schematic pane)
+   stays exactly the same.
+   ========================================================================= */
+:root {
+  --pcb-edge-color: black;
+  --pad-color: #d8d8d8;
+  --pad-hole-color: #CCCCCC;
+  --pad-color-highlight: #FF0000;
+  --pin1-outline-color: #ffb629;
+  --pin1-outline-color-highlight: #b4ff03;
+  --silkscreen-edge-color: #aa4;
+  --silkscreen-polygon-color: #4aa;
+  --silkscreen-text-color: #4aa;
+  /* The reference / value labels this page generates (drawFootprintLabels).
+     They sit on the silk canvas over a white board, so they are nearly black;
+     the dark theme flips them below or they would vanish into the background. */
+  --component-label-color: #111111;
+  --fabrication-edge-color: #907651;
+  --fabrication-polygon-color: #907651;
+  --fabrication-text-color: #a27c24;
+  --track-color: #6a8caf40;
+  --track-color-highlight: #FF0000;
+  --zone-color: #6a8caf40;
+  --zone-color-highlight: #FF000090;
+  /* Schematic pane (web/schem.js). A schematic is drawn on paper, so its own
+     colours stay ink-on-white; the dark theme only shifts the sheet background
+     and the ink, it does not invert the whole drawing. */
+  --schem-line-color: #1f3f8f;
+  --schem-wire-color: #2255cc;
+  --schem-pin-color: #000000;
+  --schem-text-color: #222222;
+  --schem-net-color: #007020;
+  --schem-port-color: #7a1f7a;
+  --schem-power-color: #a05200;
+  --schem-symbol-color: #8a6000;
+  --schem-highlight: #ff0000;
+  --schem-sheet-bg: #fbfbf8;
+  --schem-sheet-edge: #cccccc;
+
+  /* Apple design tokens (this theme) */
+  --apple-bg: #f5f5f7;
+  --apple-surface: #ffffff;
+  --apple-surface-2: #f2f2f4;
+  --apple-text: #1d1d1f;
+  --apple-text-2: #6e6e73;
+  --apple-text-3: #86868b;
+  --apple-accent: #007AFF;
+  --apple-accent-soft: #e8f0fe;
+  --apple-sep: rgba(0, 0, 0, 0.12);
+  --apple-sep-strong: rgba(0, 0, 0, 0.16);
+  --apple-radius: 12px;
+  --apple-radius-ctl: 8px;
+  --apple-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --apple-mono: "SF Mono", Consolas, "DejaVu Sans Mono", Monaco, monospace;
+}
+
+.dark.topmostdiv {
+  --pcb-edge-color: #eee;
+  --pad-color: #b0b0b0;
+  --pin1-outline-color: #ffa800;
+  --pin1-outline-color-highlight: #ccff00;
+  --track-color: #42524f;
+  --zone-color: #42524f;
+  /* Near-ink black is invisible on the dark board; go near-paper instead. Kept
+     off pure white so the labels stay calmer than the highlighted nets. */
+  --component-label-color: #f2f2f2;
+  --schem-line-color: #8fb6ff;
+  --schem-wire-color: #88aaff;
+  --schem-pin-color: #dddddd;
+  --schem-text-color: #e0e0e0;
+  --schem-net-color: #6fd06f;
+  --schem-port-color: #d79ad7;
+  --schem-power-color: #e0a060;
+  --schem-symbol-color: #d7b06a;
+  --schem-highlight: #ff5a5a;
+  --schem-sheet-bg: #20262a;
+  --schem-sheet-edge: #3a444a;
+
+  --apple-bg: #1c1c1e;
+  --apple-surface: #2c2c2e;
+  --apple-surface-2: #3a3a3c;
+  --apple-text: #f5f5f7;
+  --apple-text-2: #98989d;
+  --apple-text-3: #6e6e73;
+  --apple-accent: #0A84FF;
+  --apple-accent-soft: #1e3a5f;
+  --apple-sep: rgba(255, 255, 255, 0.12);
+  --apple-sep-strong: rgba(255, 255, 255, 0.2);
+  --apple-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  background-color: #1c1c1e;
+  color: #f5f5f7;
+}
+
+html, body {
+  margin: 0px;
+  height: 100%;
+  font-family: var(--apple-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons (segmented toolbar, icon buttons, text buttons) — Apple style
+   ------------------------------------------------------------------------- */
+button {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-sep-strong);
+  color: var(--apple-text);
+  /* One compact size for every key in the header, and one radius: the toolbar
+     bar is kept as short as it can be so the board gets the pixels. */
+  height: 36px;
+  width: 36px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1;
+  border-radius: var(--apple-radius-ctl);
+  /* Baseline-aligning inline-block buttons makes a key that has no text of its
+     own (the BOM/SCH split, whose content is a flex column) drop by the height
+     of the text baseline. Line them all up on the top edge instead. */
+  vertical-align: top;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease,
+    border-color 0.18s ease, transform 0.18s cubic-bezier(0.2, 0, 0.2, 1),
+    box-shadow 0.18s ease;
+  box-sizing: border-box;
+}
+button:hover { background-color: var(--apple-surface-2); }
+button:active { transform: scale(0.96); }
+button:focus { outline: 0; }
+button:focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 2px;
+}
+
+button.depressed {
+  background-color: var(--apple-accent-soft);
+  border-color: color-mix(in srgb, var(--apple-accent) 40%, transparent);
+  color: var(--apple-accent);
+}
+
+/* Icon-only buttons: keep their original embedded SVG art, tinted blue when
+   the group is active. In dark mode the black artwork is inverted to white
+   (surface set to the inverse of the desired dark surface). */
+button#tb-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8.47 8.47'%3E%3Crect transform='translate(0 -288.53)' ry='1.17' y='288.8' x='.27' height='7.94' width='7.94' fill='%23f9f9f9'/%3E%3Cg transform='translate(0 -288.53)'%3E%3Crect width='7.94' height='7.94' x='.27' y='288.8' ry='1.17' fill='none' stroke='%23000' stroke-width='.4' stroke-linejoin='round'/%3E%3Cpath d='M1.32 290.12h5.82M1.32 291.45h5.82' fill='none' stroke='%23000' stroke-width='.4'/%3E%3Cpath d='M4.37 292.5v4.23M.26 292.63H8.2' fill='none' stroke='%23000' stroke-width='.3'/%3E%3Ctext font-weight='700' font-size='3.17' font-family='sans-serif'%3E%3Ctspan x='1.35' y='295.73'%3EF%3C/tspan%3E%3Ctspan x='5.03' y='295.68'%3EB%3C/tspan%3E%3C/text%3E%3C/g%3E%3C/svg%3E%0A");
+}
+button#lr-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8.47 8.47'%3E%3Crect transform='translate(0 -288.53)' ry='1.17' y='288.8' x='.27' height='7.94' width='7.94' fill='%23f9f9f9'/%3E%3Cg transform='translate(0 -288.53)'%3E%3Crect width='7.94' height='7.94' x='.27' y='288.8' ry='1.17' fill='none' stroke='%23000' stroke-width='.4' stroke-linejoin='round'/%3E%3Cpath d='M1.06 290.12H3.7m-2.64 1.33H3.7m-2.64 1.32H3.7m-2.64 1.3H3.7m-2.64 1.33H3.7' fill='none' stroke='%23000' stroke-width='.4'/%3E%3Cpath d='M4.37 288.8v7.94m0-4.11h3.96' fill='none' stroke='%23000' stroke-width='.3'/%3E%3Ctext font-weight='700' font-size='3.17' font-family='sans-serif'%3E%3Ctspan x='5.11' y='291.96'%3EF%3C/tspan%3E%3Ctspan x='5.03' y='295.68'%3EB%3C/tspan%3E%3C/text%3E%3C/g%3E%3C/svg%3E%0A");
+}
+button#bom-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8.47 8.47'%3E%3Crect transform='translate(0 -288.53)' ry='1.17' y='288.8' x='.27' height='7.94' width='7.94' fill='%23f9f9f9'/%3E%3Cg transform='translate(0 -288.53)' fill='none' stroke='%23000' stroke-width='.4'%3E%3Crect width='7.94' height='7.94' x='.27' y='288.8' ry='1.17' stroke-linejoin='round'/%3E%3Cpath d='M1.59 290.12h5.29M1.59 291.45h5.33M1.59 292.75h5.33M1.59 294.09h5.33M1.59 295.41h5.33'/%3E%3C/g%3E%3C/svg%3E");
+}
+button#bom-grouped-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg stroke='%23000' stroke-linejoin='round' class='layer'%3E%3Crect width='29' height='29' x='1.5' y='1.5' stroke-width='2' fill='%23fff' rx='5' ry='5'/%3E%3Cpath stroke-linecap='square' stroke-width='2' d='M6 10h4m4 0h5m4 0h3M6.1 22h3m3.9 0h5m4 0h4m-16-8h4m4 0h4'/%3E%3Cpath stroke-linecap='null' d='M5 17.5h22M5 26.6h22M5 5.5h22'/%3E%3C/g%3E%3C/svg%3E");
+}
+button#bom-ungrouped-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg stroke='%23000' stroke-linejoin='round' class='layer'%3E%3Crect width='29' height='29' x='1.5' y='1.5' stroke-width='2' fill='%23fff' rx='5' ry='5'/%3E%3Cpath stroke-linecap='square' stroke-width='2' d='M6 10h4m-4 8h3m-3 8h4'/%3E%3Cpath stroke-linecap='null' d='M5 13.5h22m-22 8h22M5 5.5h22'/%3E%3C/g%3E%3C/svg%3E");
+}
+button#bom-netlist-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23000' class='layer'%3E%3Crect width='29' height='29' x='1.5' y='1.5' stroke-width='2' fill='%23fff' rx='5' ry='5'/%3E%3Cpath stroke-width='2' d='M6 26l6-6v-8m13.8-6.3l-6 6v8'/%3E%3Ccircle cx='11.8' cy='9.5' r='2.8' stroke-width='2'/%3E%3Ccircle cx='19.8' cy='22.8' r='2.8' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E");
+}
+button#copy {
+  background-image: url("data:image/svg+xml,%3Csvg height='48' viewBox='0 0 48 48' width='48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h48v48h-48z' fill='none'/%3E%3Cpath d='M32 2h-24c-2.21 0-4 1.79-4 4v28h4v-28h24v-4zm6 8h-22c-2.21 0-4 1.79-4 4v28c0 2.21 1.79 4 4 4h22c2.21 0 4-1.79 4-4v-28c0-2.21-1.79-4-4-4zm0 32h-22v-28h22v28z'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 24px 24px;
+  margin: 0;
+}
+button#copy:active { box-shadow: inset 0 0 0 2px var(--apple-accent-soft); }
+
+textarea.clipboard-temp {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 2em;
+  height: 2em;
+  padding: 0;
+  border: None;
+  outline: None;
+  box-shadow: None;
+  background: transparent;
+}
+
+/* Toolbar groups. Every key used to share a 1px seam with square inner corners
+   (classic segmented control); on request all of them are rounded on all four
+   corners now, so neighbouring keys are separated by a small gap instead. */
+.left-most-button,
+.middle-button,
+.right-most-button {
+  border-radius: var(--apple-radius-ctl);
+}
+.left-most-button,
+.middle-button {
+  margin-right: 4px;
+}
+
+.button-container {
+  font-size: 0;
+  margin: 6px 10px 6px 0px;
+}
+
+#left-bom-btn,
+#left-split-btn,
+#left-schem-btn {
+  width: 64px;
+  white-space: nowrap;
+  padding: 0;
+}
+
+/* Icon buttons inside segmented groups keep 32px centered artwork. */
+.button-container button {
+  background-size: 24px 24px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 丝印 / BOM are the only keys whose artwork is a word rather than a glyph.
+   Left on the browser's default 6px side padding they get 22px of content in a
+   36px key, so 丝印 wraps onto two lines and BOM (one unbreakable word) spills
+   over both edges. Give them a little more width, no padding, one line only,
+   and a size that fits both. */
+.silk-bom-keys button {
+  width: 42px;
+  padding: 0;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+@media print {
+  .hideonprint { display: none; }
+}
+
+/* Dark mode: invert only the pure-icon buttons' black artwork to white, with
+   the surface set to the inverse of the intended dark colour. */
+.dark button#tb-btn,
+.dark button#lr-btn,
+.dark button#bom-btn,
+.dark button#bom-grouped-btn,
+.dark button#bom-ungrouped-btn,
+.dark button#bom-netlist-btn,
+.dark button#copy {
+  filter: invert(1);
+  background-color: #c5c5c3;  /* inverts to #3a3a3c */
+  border-color: #b7b7b5;      /* inverts to #48484a */
+}
+.dark button.depressed {
+  background-color: var(--apple-accent-soft);
+  border-color: color-mix(in srgb, var(--apple-accent) 55%, transparent);
+  color: var(--apple-accent);
+}
+/* The inverted icon buttons above need the *pre*-inversion colour instead: the
+   filter would turn a dark navy pill into a pale tan one. */
+.dark button#tb-btn.depressed,
+.dark button#lr-btn.depressed,
+.dark button#bom-btn.depressed,
+.dark button#bom-grouped-btn.depressed,
+.dark button#bom-ungrouped-btn.depressed,
+.dark button#bom-netlist-btn.depressed,
+.dark button#copy.depressed {
+  background-color: #e8f0fe;  /* inverts to a dark navy active state */
+  border-color: #b7b7b5;
+}
+
+canvas { cursor: crosshair; }
+canvas:active { cursor: grabbing; }
+
+/* ---------------------------------------------------------------------------
+   Header / file info
+   ------------------------------------------------------------------------- */
+.fileinfo {
+  width: 100%;
+  max-width: 1000px;
+  border: none;
+  padding: 4px 16px;
+}
+.fileinfo .title {
+  font-size: 15pt;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--apple-text);
+}
+.fileinfo td {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 1px;
+  width: 50%;
+  text-overflow: ellipsis;
+  color: var(--apple-text-2);
+  font-size: 11pt;
+}
+/* The board date rides on the "Rev:" line now, set back and smaller so "Rev:
+   1.1" and the time stamp do not read as one long string of numbers. */
+.fileinfo .revdate {
+  margin-left: 14px;
+  font-size: 11pt;
+  font-weight: 400;
+  color: var(--apple-text-2);
+}
+
+/* ---------------------------------------------------------------------------
+   BOM table — Apple style
+   ------------------------------------------------------------------------- */
+.bom {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--apple-mono);
+  font-size: 10pt;
+  table-layout: fixed;
+  width: auto;
+  margin-top: 1px;
+}
+
+#bomdiv { overflow-x: auto; }
+
+.bom th, .bom td {
+  border: 0;
+  border-right: 1px solid var(--apple-sep);
+  border-bottom: 1px solid var(--apple-sep);
+  padding: 6px 10px;
+  word-wrap: break-word;
+  text-align: center;
+  position: relative;
+  color: var(--apple-text);
+}
+.bom th:last-child, .bom td:last-child { border-right: 0; }
+.bom tr:last-child td { border-bottom: 0; }
+
+.bom th {
+  background-color: var(--apple-surface-2);
+  background-clip: padding-box;
+  font-family: var(--apple-font);
+  font-weight: 600;
+  color: var(--apple-text);
+  font-size: 10.5pt;
+}
+.bom tr:nth-child(even) { background-color: rgba(0, 0, 0, 0.035); background-color: color-mix(in srgb, var(--apple-surface) 55%, var(--apple-bg)); }
+.bom tr.highlighted:nth-child(n) {
+  background-color: rgba(52, 199, 89, 0.16);
+  background-color: color-mix(in srgb, #34c759 12%, var(--apple-surface));
+}
+.bom tr.checked { color: var(--apple-text-3); }
+.bom tr { transition: background-color 0.2s; }
+
+/* Column widths (fallbacks when the colgroup is absent) */
+.bom .numCol { width: 30px; }
+.bom .References { width: 180px; }
+.bom .Footprint { width: 120px; }
+.bom .bom-netname { width: 200px; }
+.bom .extra { width: 120px; }
+.bom .Description { width: 150px; }
+.bom .Part { width: 10%; }
+.bom .Value { width: 110px; }
+.bom .Quantity { width: 70px; }
+
+.bom th.bom-col-resizing,
+.bom th.bom-col-resizing .sortmark { cursor: col-resize; }
+
+.bom th .bom-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  border-right: 2px solid var(--apple-sep);
+  z-index: 2;
+}
+.bom th .bom-resize-handle:hover {
+  background: rgba(0, 122, 255, 0.3);
+  background: color-mix(in srgb, var(--apple-accent) 30%, transparent);
+  border-right-color: var(--apple-accent);
+}
+.bom th.bom-col-being-moved { opacity: 0.45; }
+.bom th.bom-col-active-resize { background-color: var(--apple-accent-soft); }
+
+body.bom-dragging {
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing;
+}
+body.bom-dragging .bom { cursor: grabbing; }
+
+.bom-drop-indicator {
+  display: none;
+  position: fixed;
+  width: 3px;
+  margin-left: -1px;
+  background-color: var(--apple-accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--apple-accent) 80%, transparent);
+  z-index: 200;
+  pointer-events: none;
+}
+
+.bom th .sortmark {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent var(--apple-text-2) transparent;
+  transform-origin: 50% 85%;
+  transition: opacity 0.2s, transform 0.4s;
+}
+.bom th .sortmark.none { opacity: 0; }
+.bom th .sortmark.desc { transform: rotate(180deg); }
+.bom th:hover .sortmark.none { opacity: 0.5; }
+
+/* Column header checkbox: native checkbox + Apple tooltip bubble. */
+.bom .bom-checkbox {
+  width: 70px;
+  position: relative;
+  user-select: none;
+  -moz-user-select: none;
+}
+.bom .bom-checkbox:before {
+  content: "";
+  position: absolute;
+  border-width: 15px;
+  border-style: solid;
+  border-color: var(--apple-surface-2) transparent transparent transparent;
+  visibility: hidden;
+  top: -15px;
+}
+.bom .bom-checkbox:after {
+  content: "Double click to set/unset all";
+  position: absolute;
+  color: #fff;
+  top: -35px;
+  left: -26px;
+  background: #48484a;
+  padding: 6px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  visibility: hidden;
+  font-family: var(--apple-font);
+  font-size: 11px;
+  box-shadow: var(--apple-shadow);
+}
+.bom .bom-checkbox:hover:before, .bom .bom-checkbox:hover:after {
+  visibility: visible;
+  transition: visibility 0.2s linear 1s;
+}
+
+/* ---------------------------------------------------------------------------
+   Split panes
+   ------------------------------------------------------------------------- */
+.split {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--apple-surface);
+}
+.split.split-horizontal, .gutter.gutter-horizontal {
+  height: 100%;
+  float: left;
+}
+.gutter {
+  background-color: var(--apple-sep);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transition: background-color 0.3s;
+}
+.gutter.gutter-horizontal {
+  cursor: ew-resize;
+  width: 5px;
+}
+.gutter.gutter-vertical {
+  cursor: ns-resize;
+  height: 5px;
+}
+.gutter:hover { background-color: var(--apple-accent); }
+
+/* ---------------------------------------------------------------------------
+   Search / filter inputs — Apple capsules
+   ------------------------------------------------------------------------- */
+.searchbox {
+  float: left;
+  height: 40px;
+  margin: 10px 5px;
+  padding: 0 14px 0 34px;
+  font-family: var(--apple-font);
+  font-size: 14px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  outline: none;
+  background-color: rgba(0, 0, 0, 0.06);
+  background-color: color-mix(in srgb, var(--apple-text) 6%, transparent);
+  color: var(--apple-text);
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%2386886b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Ccircle cx="11" cy="11" r="7"/%3E%3Cpath d="M21 21l-4.3-4.3"/%3E%3C/svg%3E');
+  background-position: 12px center;
+  background-repeat: no-repeat;
+}
+.searchbox:hover { background-color: color-mix(in srgb, var(--apple-text) 9%, transparent); }
+.searchbox:focus {
+  background-color: var(--apple-surface);
+  border-color: var(--apple-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--apple-accent) 25%, transparent);
+}
+.searchbox::placeholder { color: var(--apple-text-3); }
+
+.filter { width: calc(60% - 64px); }
+.reflookup { width: calc(40% - 10px); }
+
+input[type=text] { color: var(--apple-text); }
+input[type=text]:focus {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--apple-accent) 25%, transparent);
+}
+
+/* Native checkboxes / radios tinted with the Apple accent. */
+input[type=checkbox], input[type=radio] {
+  accent-color: var(--apple-accent);
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+mark.highlight {
+  background-color: rgba(0, 122, 255, 0.45);
+  background-color: color-mix(in srgb, var(--apple-accent) 45%, transparent);
+  color: #fff;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   Gear / stats / IO menu buttons (icon-only, black SVG artwork)
+   ------------------------------------------------------------------------- */
+.menubtn {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-sep-strong);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 20 20'%3E%3Cpath fill='none' d='M0 0h20v20H0V0z'/%3E%3Cpath d='M15.95 10.78c.03-.25.05-.51.05-.78s-.02-.53-.06-.78l1.69-1.32c.15-.12.19-.34.1-.51l-1.6-2.77c-.1-.18-.31-.24-.49-.18l-1.99.8c-.42-.32-.86-.58-1.35-.78L12 2.34c-.03-.2-.2-.34-.4-.34H8.4c-.2 0-.36.14-.39.34l-.3 2.12c-.49.2-.94.47-1.35.78l-1.99-.8c-.18-.07-.39 0-.49.18l-1.6 2.77c-.1.18-.06.39.1.51l1.69 1.32c-.04.25-.07.52-.07.78s.02.53.06.78L2.37 12.1c-.15.12-.19.34-.1.51l1.6 2.77c.1.18.31.24.49.18l1.99-.8c.42.32.86.58 1.35.78l.3 2.12c.04.2.2.34.4.34h3.2c.2 0 .37-.14.39-.34l.3-2.12c.49-.2.94-.47 1.35-.78l1.99.8c.18.07.39 0 .49-.18l1.6-2.77c.1-.18.06-.39-.1-.51l-1.67-1.32zM10 13c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z'/%3E%3C/svg%3E%0A");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.statsbtn {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-sep-strong);
+  background-image: url("data:image/svg+xml,%3Csvg width='36' height='36' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 6h28v24H4V6zm0 8h28v8H4m9-16v24h10V5.8' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.iobtn {
+  background-color: var(--apple-surface);
+  border: 1px solid var(--apple-sep-strong);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' d='M3 33v-7l6.8-7h16.5l6.7 7v7H3zM3.2 26H33M21 9l5-5.9 5 6h-2.5V15h-5V9H21zm-4.9 0l-5 6-5-6h2.5V3h5v6h2.5z'/%3E%3Cpath fill='none' stroke='%23000' d='M6.1 29.5H10'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* The artwork in these three is drawn at 36px; the buttons are smaller than
+   that now, so the icon is scaled to match the toolbar group icons. */
+.menubtn, .statsbtn, .iobtn { background-size: 24px 24px; }
+.dark .menubtn, .dark .statsbtn, .dark .iobtn {
+  filter: invert(1);
+  background-color: #c5c5c3;  /* inverts to #3a3a3c */
+  border-color: #b7b7b5;      /* inverts to #48484a */
+}
+
+/* Text buttons in the settings menu (save image / export / import settings). */
+.savebtn {
+  width: auto;
+  height: 30px;
+  flex-grow: 1;
+  margin: 5px;
+  padding: 0 12px;
+  font-family: var(--apple-font);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--apple-radius-ctl);
+}
+.savebtn:active {
+  background-color: var(--apple-accent-soft);
+  border-color: var(--apple-accent);
+  color: var(--apple-accent);
+}
+
+.flexbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Stats
+   ------------------------------------------------------------------------- */
+.stats {
+  border-collapse: collapse;
+  font-size: 12pt;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 450px;
+  font-family: var(--apple-font);
+}
+.stats td {
+  border: 1px solid var(--apple-sep);
+  padding: 5px;
+  word-wrap: break-word;
+  text-align: center;
+  position: relative;
+  color: var(--apple-text);
+}
+#checkbox-stats div {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#checkbox-stats .bar { background-color: rgba(52, 199, 89, 0.55); }
+
+/* ---------------------------------------------------------------------------
+   Dropdown menus — Apple card
+   ------------------------------------------------------------------------- */
+.menu {
+  position: relative;
+  display: inline-block;
+  /* Same box as .button-container so every key in the header sits on one line
+     (the inline "top" in ibom.html completes the 10px offset). */
+  margin: 6px 10px 6px 0px;
+}
+.menu-content {
+  display: none;
+  position: absolute;
+  background-color: var(--apple-surface);
+  color: var(--apple-text);
+  right: 0;
+  min-width: 300px;
+  box-shadow: var(--apple-shadow);
+  border: 1px solid var(--apple-sep);
+  border-radius: 14px;
+  z-index: 100;
+  padding: 8px;
+  overflow: hidden;
+}
+/* Click-to-toggle: the menu stays open until clicked again, until a click
+   lands outside every menu, or until Escape. initMenus() in util.js owns the
+   .open class; the content stays display:none otherwise. */
+.menu.open .menu-content { display: block; }
+/* Hover only tints the button. It used to open the menus as well, which fired
+   whenever the cursor merely travelled across the header - far too eager for
+   a panel as big as the settings grid. */
+.menu:hover .menubtn, .menu:hover .iobtn, .menu:hover .statsbtn {
+  background-color: var(--apple-surface-2);
+}
+/* Settings menu only: 3 options per row, laid out by grid to shorten the list.
+   The width has to fit the longest cell ("显示 No BOM 元件" plus its 15px box),
+   otherwise the label wraps under its own checkbox. */
+.menu-content.menu-grid {
+  min-width: 500px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+}
+.menu.open .menu-content.menu-grid { display: grid; }
+.menu-content.menu-grid > * { width: auto !important; box-sizing: border-box; grid-column: span 1; }
+.menu-content.menu-grid > .menu-span,
+.menu-content.menu-grid > .menu-hint,
+.menu-content.menu-grid > .menu-label-action { grid-column: 1 / -1; }
+.menu-content.menu-grid > #tracksAndZonesCheckboxes { display: contents; }
+.menu-content.menu-grid > .menu-label,
+.menu-content.menu-grid > .menu-hint { border-bottom: 1px solid var(--apple-sep); }
+
+.menu-label {
+  display: inline-block;
+  padding: 8px;
+  border-bottom: 1px solid var(--apple-sep);
+  width: calc(100% - 18px);
+  color: var(--apple-text);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.menu-label-top { border-top: 1px solid var(--apple-sep); }
+
+.menu-label-action { padding: 6px 8px; border-bottom: 0; }
+.menu-action-button {
+  height: 28px;
+  width: auto;
+  padding: 0 14px;
+  font-family: var(--apple-font);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--apple-sep-strong);
+  border-radius: var(--apple-radius-ctl);
+  background-color: var(--apple-surface-2);
+  color: var(--apple-text);
+  cursor: pointer;
+  box-shadow: none;
+}
+.menu-action-button:hover { background-color: var(--apple-surface-2); background-color: color-mix(in srgb, var(--apple-text) 10%, var(--apple-surface-2)); }
+
+.menu-hint {
+  display: inline-block;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--apple-sep);
+  width: calc(100% - 18px);
+  box-sizing: border-box;
+  font-family: var(--apple-font);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--apple-text-2);
+}
+
+.menu-textbox {
+  float: left;
+  height: 28px;
+  margin: 4px 0;
+  padding: 0 10px;
+  font-family: var(--apple-font);
+  font-size: 13px;
+  box-sizing: border-box;
+  border: 1px solid var(--apple-sep-strong);
+  border-radius: 6px;
+  outline: none;
+  background-color: var(--apple-surface-2);
+  color: var(--apple-text);
+  transition: background-color 0.2s, border-color 0.2s;
+  width: calc(100% - 10px);
+}
+.menu-textbox:focus { border-color: var(--apple-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--apple-accent) 25%, transparent); }
+.menu-textbox.invalid { color: #ff3b30; }
+
+.radio-container { margin: 4px; }
+
+/* One cell of the settings grid must never wrap: the checkbox would end up on
+   a line of its own. */
+.menu-content.menu-grid > .menu-label { white-space: nowrap; }
+
+/* The split-view button draws the split it stands for: "BOM 在上", a rule, then
+   "SCH 在下". */
+#left-split-btn { padding: 4px 2px; }
+.stack-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 100%;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.stack-sep {
+  display: block;
+  width: 88%;
+  height: 1px;
+  background-color: currentColor;
+  opacity: 0.7;
+}
+
+/* Layer name captions on each canvas pane (inner layers get one; the faces are
+   self-explanatory from their own content). */
+.inner-layer-label {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  z-index: 4;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: var(--apple-font);
+  font-size: 11px;
+  line-height: 16px;
+  pointer-events: none;
+  user-select: none;
+  background: rgba(0, 0, 0, 0.35);
+  background: color-mix(in srgb, #000 45%, transparent);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------------------
+   Top-level layout + Apple header bar
+   ------------------------------------------------------------------------- */
+.topmostdiv {
+  width: 100%;
+  height: 100%;
+  background-color: var(--apple-bg);
+  transition: background-color 0.3s;
+}
+
+#top {
+  /* Kept short: every pixel here is a pixel the board below does not get.
+     ibom.js reads this back (topBarOffset) instead of repeating the number. */
+  height: 56px;
+  border-bottom: 1px solid var(--apple-sep);
+  background: var(--apple-surface);
+  box-shadow: 0 1px 0 var(--apple-sep);
+}
+
+#dbg { display: block; }
+
+/* Apple-style scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.28);
+  background: color-mix(in srgb, var(--apple-text) 28%, transparent);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--apple-text) 40%, transparent); background-clip: padding-box; }
+
+/* Sliders — Apple range controls */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  margin: 3px 0;
+  padding: 0;
+  outline: none;
+  opacity: 0.75;
+  -webkit-transition: opacity .2s;
+  transition: opacity .2s;
+  background: transparent;
+}
+.slider:hover { opacity: 1; }
+.slider:focus { outline: none; }
+.slider::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  background: color-mix(in srgb, var(--apple-text) 16%, transparent);
+  border-radius: 3px;
+  border: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  margin-top: -6px;
+  transition: transform 0.15s ease;
+}
+.slider::-webkit-slider-thumb:active { transform: scale(1.15); }
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.slider::-moz-range-track {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  background: color-mix(in srgb, var(--apple-text) 16%, transparent);
+  border-radius: 3px;
+}
+.slider::-ms-track {
+  width: 100%;
+  height: 6px;
+  border-width: 3px 0;
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+  transition: opacity .2s;
+}
+.slider::-ms-fill-lower { background: var(--apple-accent); border: none; border-radius: 3px; }
+.slider::-ms-fill-upper { background: rgba(0, 0, 0, 0.16); background: color-mix(in srgb, var(--apple-text) 16%, transparent); border: none; border-radius: 3px; }
+.slider::-ms-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  margin: 0;
+}
+
+.shameless-plug {
+  font-size: 0.8em;
+  text-align: center;
+  display: block;
+}
+a { color: var(--apple-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+#frontcanvas, #backcanvas { touch-action: none; }
+
+/* ---------------------------------------------------------------------------
+   Schematic pane (layout rules kept identical; only surface colours themed)
+   ------------------------------------------------------------------------- */
+#bomdiv { display: flex; flex-direction: column; }
+#bomwrap { flex: 1 1 auto; overflow: auto; min-height: 0; }
+#schemdiv {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--apple-sep-strong);
+}
+#schemgrip {
+  flex: 0 0 7px;
+  display: none;
+  cursor: row-resize;
+  background-color: var(--apple-sep);
+  border-top: 1px solid var(--apple-sep-strong);
+  border-bottom: 1px solid var(--apple-sep-strong);
+}
+#schemgrip:hover { background-color: var(--apple-accent); }
+#schembar {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  font-size: 9pt;
+  overflow: auto;
+  white-space: nowrap;
+  color: var(--apple-text-2);
+}
+.sch-note { margin-right: 6px; color: var(--schem-text-color); }
+.sch-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+  font-size: 9pt;
+  color: var(--apple-text-3);
+  border-top: 1px solid var(--apple-sep);
+}
+.sch-why { white-space: pre-wrap; line-height: 1.5; }
+.sch-copybtn {
+  height: 26px;
+  margin: 6px 0 4px 0;
+  padding: 0 10px;
+  font-size: 9pt;
+  font-family: var(--apple-font);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.sch-diag {
+  margin: 0;
+  font-family: var(--apple-mono);
+  font-size: 8.5pt;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  color: var(--apple-text-2);
+}
+.sch-tab {
+  height: 24px;
+  width: auto;
+  padding: 0 10px;
+  margin-right: 3px;
+  font-size: 9pt;
+  font-weight: 500;
+  font-family: var(--apple-font);
+  border-radius: 6px;
+}
+#schemview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--schem-sheet-bg);
+}
+.sch-holder { width: 100%; height: 100%; }
+.sch-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  font-family: "Times New Roman", "SimSun", serif;
+}
+
+/* Schematic drawing primitives — colours come from the CSS variables that the
+   dark theme flips, so these rules are unchanged. */
+.sch-line, .sch-rect, .sch-poly, .sch-arc, .sch-ellipse, .sch-sheetsym {
+  fill: none;
+  stroke: var(--schem-wire-color);
+  stroke-width: 2;
+}
+.sch-comp .sch-line, .sch-comp .sch-rect, .sch-comp .sch-poly,
+.sch-comp .sch-arc, .sch-comp .sch-ellipse {
+  stroke: var(--schem-line-color);
+}
+.sch-sheetsym { stroke: var(--schem-symbol-color); }
+.sch-sheetsym-text, .sch-text, .sch-ref, .sch-pin-num, .sch-freetext {
+  fill: var(--schem-text-color);
+  stroke: none;
+}
+.sch-sheetsym-text { fill: var(--schem-symbol-color); }
+.sch-pin-num { fill: var(--schem-text-color); stroke: none; }
+.sch-pin { stroke: var(--schem-pin-color); stroke-width: 2; }
+.sch-pin-dot { fill: none; stroke: var(--schem-pin-color); stroke-width: 1; }
+.sch-junction { fill: var(--schem-line-color); stroke: none; }
+.sch-netlabel { fill: var(--schem-net-color); stroke: none; }
+.sch-port { fill: var(--schem-port-color); stroke: none; }
+.sch-power { fill: var(--schem-power-color); stroke: none; }
+.sch-power-sym { stroke: var(--schem-power-color); stroke-width: 1.6; fill: none; }
+.sch-sheetbg { fill: var(--schem-sheet-bg); stroke: var(--schem-sheet-edge); stroke-width: 1; }
+line.sch-net-hl, polyline.sch-net-hl, path.sch-net-hl {
+  stroke: var(--schem-highlight);
+  stroke-width: 4;
+}
+circle.sch-net-hl { stroke: var(--schem-highlight); fill: var(--schem-highlight); }
+text.sch-net-hl { fill: var(--schem-highlight); stroke: none; font-weight: bold; }
+g.sch-net-hl .sch-power-sym { stroke: var(--schem-highlight); stroke-width: 4; }
+g.sch-net-hl .sch-power { fill: var(--schem-highlight); font-weight: bold; }
+.sch-hit { fill: transparent; stroke: none; }
+.sch-comp { cursor: pointer; }
+.sch-text[data-mv] { cursor: move; }
+.sch-comp:hover .sch-hit { fill: var(--schem-highlight); fill-opacity: 0.10; }
+.sch-comp.sch-hl .sch-hit {
+  fill: var(--schem-highlight);
+  fill-opacity: 0.18;
+  stroke: var(--schem-highlight);
+  stroke-width: 1.5;
+}
+.sch-comp.sch-hl .sch-ref { fill: var(--schem-highlight); font-weight: bold; }
+

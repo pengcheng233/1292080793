@@ -1,0 +1,352 @@
+/* Standalone schematic page stylesheet.
+ *
+ * This is the schematic pane of web/schem.js lifted out of the full ibom page so
+ * the export can be opened on its own, with pan/zoom, sheet tabs, a designator
+ * search box and a light/dark toggle, but no BOM. It mirrors the relevant rules
+ * from ibom.css (the --schem-* palette, the sheet SVG classes) and adds a small
+ * top bar. Keep it in the same ES3-free, plain-CSS style as the rest of the
+ * project: no CSS nesting, no custom properties beyond the simple --schem-* set. */
+
+:root {
+  /* Schematic palette: ink on paper. The dark theme only shifts the sheet
+     background and the ink, it does not invert the whole drawing. */
+  --schem-line-color: #1f3f8f;
+  --schem-wire-color: #2255cc;
+  --schem-pin-color: #000000;
+  --schem-text-color: #222222;
+  --schem-net-color: #007020;
+  --schem-port-color: #7a1f7a;
+  --schem-power-color: #a05200;
+  --schem-symbol-color: #8a6000;
+  --schem-highlight: #ff0000;
+  --schem-sheet-bg: #fbfbf8;
+  --schem-sheet-edge: #cccccc;
+
+  --schem-topbar-bg: #f3f3f0;
+  --schem-topbar-fg: #222222;
+  --schem-border: #999999;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: Verdana, "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+body.dark {
+  --schem-line-color: #8fb6ff;
+  --schem-wire-color: #88aaff;
+  --schem-pin-color: #dddddd;
+  --schem-text-color: #e0e0e0;
+  --schem-net-color: #6fd06f;
+  --schem-port-color: #d79ad7;
+  --schem-power-color: #e0a060;
+  --schem-symbol-color: #d7b06a;
+  --schem-highlight: #ff5a5a;
+  --schem-sheet-bg: #20262a;
+  --schem-sheet-edge: #3a444a;
+  --schem-topbar-bg: #2b3137;
+  --schem-topbar-fg: #e0e0e0;
+  --schem-border: #3a444a;
+  background-color: #252c30;
+  color: #eee;
+}
+
+/* --- top bar --------------------------------------------------------------- */
+.sch-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px;
+  background-color: var(--schem-topbar-bg);
+  color: var(--schem-topbar-fg);
+  border-bottom: 1px solid var(--schem-border);
+}
+
+.sch-title {
+  font-size: 11pt;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.sch-spacer { flex: 1 1 auto; }
+
+.sch-search {
+  height: 26px;
+  width: 200px;
+  padding: 0 6px;
+  font-size: 10pt;
+  border: 1px solid var(--schem-border);
+  border-radius: 3px;
+  background: #ffffff;
+  color: #222222;
+}
+body.dark .sch-search { background: #1c2126; color: #e0e0e0; }
+
+.sch-themebtn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 10pt;
+  cursor: pointer;
+  border: 1px solid var(--schem-border);
+  border-radius: 3px;
+  background: #eeeeee;
+  color: #222222;
+}
+body.dark .sch-themebtn { background: #3a444a; color: #e0e0e0; }
+
+.sch-build {
+  font-size: 8.5pt;
+  color: #888888;
+  white-space: nowrap;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.dark .sch-build { color: #9aa5ab; }
+
+/* --- schematic pane -------------------------------------------------------- */
+#schemdiv {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#schembar {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  font-size: 9pt;
+  overflow: auto;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--schem-border);
+}
+
+.sch-note {
+  margin-right: 6px;
+  color: var(--schem-text-color);
+}
+
+/* Shown when the export carried no schematic at all: a strip with the reason
+   and the reader's own notes, never a blank pane. */
+.sch-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+  font-size: 9pt;
+  color: #888888;
+  border-top: 1px solid #dddddd;
+}
+body.dark .sch-empty { color: #9aa5ab; border-top: 1px solid #3a444a; }
+
+.sch-why {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.sch-copybtn {
+  height: 22px;
+  margin: 6px 0 4px 0;
+  padding: 0 8px;
+  font-size: 9pt;
+  cursor: pointer;
+}
+
+.sch-diag {
+  margin: 0;
+  font-family: Consolas, "DejaVu Sans Mono", Monaco, monospace;
+  font-size: 8.5pt;
+  white-space: pre-wrap;
+  word-break: break-all;
+  /* Selectable, so "copy the diagnosis" also works by hand. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sch-tab {
+  height: 22px;
+  width: auto;
+  padding: 0 6px;
+  margin-right: 3px;
+  font-size: 9pt;
+  font-weight: normal;
+}
+
+#schemview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--schem-sheet-bg);
+}
+
+.sch-holder {
+  width: 100%;
+  height: 100%;
+}
+
+.sch-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Altium's default schematic font is Times New Roman (serif); matching it
+     keeps exported text width close to the original and far narrower than
+     Verdana, which crowded long pin names into each other. */
+  font-family: "Times New Roman", "SimSun", serif;
+}
+
+/* Stroke widths are plain data units (1/100 inch) and scale with zoom, so the
+   drawing looks the same at every zoom level - no artificial bolding when
+   zoomed out, no hairlines when zoomed in. */
+
+/* Wires and symbol graphics share the primitive classes; wires get their own
+   blue at sheet level, and the override below hands symbol graphics back the
+   line palette. 2 units keep the drawing light; the point-merge in the net
+   builder covers the 1-grid-unit gaps present in the Altium data. */
+.sch-line, .sch-rect, .sch-poly, .sch-arc, .sch-ellipse, .sch-sheetsym {
+  fill: none;
+  stroke: var(--schem-wire-color);
+  stroke-width: 2;
+}
+
+.sch-comp .sch-line, .sch-comp .sch-rect, .sch-comp .sch-poly,
+.sch-comp .sch-arc, .sch-comp .sch-ellipse {
+  stroke: var(--schem-line-color);
+}
+
+.sch-sheetsym {
+  stroke: var(--schem-symbol-color);
+}
+
+.sch-sheetsym-text, .sch-text, .sch-ref, .sch-pin-num, .sch-freetext {
+  fill: var(--schem-text-color);
+  stroke: none;
+}
+
+.sch-sheetsym-text {
+  fill: var(--schem-symbol-color);
+}
+
+.sch-pin-num {
+  fill: var(--schem-text-color);
+  stroke: none;
+}
+
+.sch-pin {
+  stroke: var(--schem-pin-color);
+  stroke-width: 2;
+}
+
+.sch-pin-dot {
+  fill: none;
+  stroke: var(--schem-pin-color);
+  stroke-width: 1;
+}
+
+.sch-junction {
+  fill: var(--schem-line-color);
+  stroke: none;
+}
+
+.sch-netlabel {
+  fill: var(--schem-net-color);
+  stroke: none;
+}
+
+.sch-port {
+  fill: var(--schem-port-color);
+  stroke: none;
+}
+
+.sch-power {
+  fill: var(--schem-power-color);
+  stroke: none;
+}
+
+.sch-power-sym {
+  stroke: var(--schem-power-color);
+  stroke-width: 1.6;
+  fill: none;
+}
+
+.sch-sheetbg {
+  fill: var(--schem-sheet-bg);
+  stroke: var(--schem-sheet-edge);
+  stroke-width: 1;
+}
+
+/* Click a wire / pin / net label / power symbol: the whole electrical net
+   lights up in the highlight color until the next click. */
+line.sch-net-hl, polyline.sch-net-hl, path.sch-net-hl {
+  stroke: var(--schem-highlight);
+  stroke-width: 4; /* double the normal 2 so a lit net pops out */
+}
+
+circle.sch-net-hl {
+  stroke: var(--schem-highlight);
+  fill: var(--schem-highlight);
+}
+
+text.sch-net-hl {
+  fill: var(--schem-highlight);
+  stroke: none;
+  font-weight: bold;
+}
+
+g.sch-net-hl .sch-power-sym {
+  stroke: var(--schem-highlight);
+  stroke-width: 4;
+}
+
+g.sch-net-hl .sch-power {
+  fill: var(--schem-highlight);
+  font-weight: bold;
+}
+
+.sch-hit {
+  fill: transparent;
+  stroke: none;
+}
+
+.sch-comp {
+  cursor: pointer;
+}
+
+/* Designators/parameters are individually draggable labels. */
+.sch-text[data-mv] {
+  cursor: move;
+}
+
+.sch-comp:hover .sch-hit {
+  fill: var(--schem-highlight);
+  fill-opacity: 0.10;
+}
+
+.sch-comp.sch-hl .sch-hit {
+  fill: var(--schem-highlight);
+  fill-opacity: 0.18;
+  stroke: var(--schem-highlight);
+  stroke-width: 1.5;
+}
+
+.sch-comp.sch-hl .sch-ref {
+  fill: var(--schem-highlight);
+  font-weight: bold;
+}
+
+/* Hide the print-only chrome when the page is printed. */
+.hideonprint { }
+@media print {
+  .hideonprint { display: none !important; }
+  #schemview { overflow: visible; }
+}

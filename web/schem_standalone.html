@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>///TITLE/// · 原理图</title>
+<style>///SCHEMCSS///</style>
+</head>
+<body>
+<div class="sch-topbar hideonprint">
+  <span class="sch-title">///TITLE/// · 原理图</span>
+  <input id="schsearch" class="sch-search" type="text" placeholder="位号查找"
+         oninput="schemSearch(this.value)">
+  <span class="sch-spacer"></span>
+  <button class="sch-themebtn" onclick="document.body.classList.toggle('dark')"
+          title="切换亮 / 暗主题">主题</button>
+  <span class="sch-build" title="导出时 AD 脚本的标记，可用来判断是不是旧脚本">///ADBUILD///</span>
+</div>
+<!-- The schematic fills the rest of the page. #schemdiv is visible by default
+     (no inline display:none here: an inline display would outrank the stylesheet
+     and the switch could never reveal the pane). ensureSchem() decides which of
+     #schemview / #schemempty to show once the data is known. -->
+<div id="schemdiv">
+  <div id="schembar"><span id="schemnote" class="sch-note">原理图</span></div>
+  <div id="schemview"></div>
+  <div id="schemempty" class="sch-empty">
+    <div id="schememptywhy" class="sch-why"></div>
+    <button id="schemdiagcopy" class="sch-copybtn"
+            onclick="schemCopyDiag()">复制诊断</button>
+    <pre id="schemdiagtext" class="sch-diag"></pre>
+  </div>
+</div>
+<!-- The page data, injected by the AD-side exporter. Kept as a plain global so
+     web/schem.js (loaded next) can read it the same way the full ibom page does. -->
+<script>var pcbdata = ///PCBDATA///;</script>
+<script>///SCHEMJS///</script>
+<script>///STANDALONEJS///</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+InteractiveBOM Suite V1.0.00 版本说明
+
+发布日期：2026-09-25
+基线：InteractiveHtmlBomForAD（master v0.3.16）
+
+InteractiveBOM Suite 在基线基础上扩展为 BOM / PCB / 原理图一站式交互查看与导出套件。
+
+
+原版项目与致谢
+
+本项目基于以下开源项目二次开发，特此致谢：
+
+  - InteractiveHtmlBomForAD（AD 版交互式 BOM 导出插件，本项目基线）
+  https://github.com/lianlian33/InteractiveHtmlBomForAD
+  - InteractiveHtmlBom（KiCad 版交互式 HTML BOM，上游原始项目）
+  https://github.com/openscopeproject/InteractiveHtmlBom
+
+感谢以上项目作者及开源社区的贡献。
+
+
+一、新增功能
+
+1. 原理图导出与三向联动
+  - 导出时勾选「包含原理图（离线 SchDoc）」，自动读取工程内全部原理图并写入导出页面，不影响 BOM / PCB 主流程。
+  - 页面内原理图为 SVG 矢量显示：可缩放、平移、多图切换、面板高度可调。
+  - BOM / PCB / 原理图三个视图点击互查、三向高亮联动。
+
+2. 网络名标注
+  - 走线、焊盘、过孔图上显示网络名，「网络名」开关统一控制。
+
+3. 标签字号调节
+  - 位号 / 参数 / 网络名三类标签各有独立字号滑条。
+  - 默认字号自适应高分屏自动放大；标签可拖动、空格旋转、双击复位。
+  - 「重置字体大小」「重置标签位置」一键恢复。
+
+4. BOM 一键导出 Excel（.xlsx）
+  - 工具栏「BOM」按钮直接导出 .xlsx，无需安装 Excel / WPS；支持「另存为」自选位置。
+  - 表头加粗、冻结首行、自动筛选；「0603」等封装不丢前导零。
+
+5. No BOM 元件支持
+  - 导出时可排除无 BOM 元件；页面上「显示 No BOM 元件」开关可实时找回。
+
+6. 导出面板高分屏自适应
+  - 4K / 高分屏上导出对话框自动放大（config.ini `PanelScale=auto`，也可指定固定倍率）。
+
+7. 界面全面汉化
+  - 菜单、统计表、BOM 列标题、提示文字全中文；BOM、DNP、SMD 等行业缩写保留英文。
+
+8. 界面细节
+  - 暗色模式标签配色。
+  - 丝印打印一层一页，横竖 A4 均完整。
+  - BOM 视图三种布局：仅 BOM / 左表右图 / 上表下图。
+  - 设置菜单点击开合。
+
+
+二、操作流程
+
+1. 安装
+1. 解压到任意目录。
+2. 运行一次 Initialize.bat（自动生成路径配置并拼接脚本产物）。
+
+2. 导出
+1. 用 Altium Designer 打开 InteractiveBOMSuite.PrjScr。
+2. 打开 PCB 文件。
+3. Run Script... 运行 main()（或运行 dist\mainWin.js 走图形窗口）。
+4. 需要原理图时勾选「包含原理图（离线 SchDoc）」。
+5. 产物输出到 `<PCB 目录>\PnPout\<板名>.html`。
+
+3. 使用导出页面
+  - 双击 HTML 即可打开，离线单文件、无网络依赖。
+  - 点击 BOM 行 / PCB 元件 / 原理图元件，三视图同步高亮定位。
+  - 工具栏「BOM」按钮导出 Excel 物料清单。
+  - 「丝印」按钮打印顶层 / 底层丝印为 A4 PDF。
+
+4. 更新说明
+  - 修改 AD 侧脚本后需重启 Altium Designer。
+  - 仅更新 web/ 页面文件时，重新导出一次 HTML 即可。
+
+
+三、换机使用
+
+  - 换目录、换电脑只需重新运行一次 Initialize.bat，无写死的机器路径。
+  - 原理图注入器自动查找 node.exe（config.ini 指定 → Program Files → 用户目录）；仍找不到时在 config.ini `[General]` 加一行 `NodePath=<node.exe 完整路径>` 即可。
+  - 分发包内 rootPath.js 与 dist 产物中的路径为空占位（`var CURRENT_PATH = "";`），运行 Initialize.bat 后自动写入实际路径，属正常现象。
+
+
+四、兼容性
+
+  - 旧版导出的设置文件可直接导入，历史 HTML 页面可正常打开。
+  - 导出页面为离线单文件，双击即可打开，无网络依赖。

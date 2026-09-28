@@ -1,0 +1,1517 @@
+InteractiveBOM Suite V1.0.00  ·  原理图 + 铺铜网络定制版（正式发布）
+存档日期：2026-09-25（含 0.3.17/0.4/0.5.x 全部改动；V1.0.00 起更名 InteractiveBOM Suite）
+基于：github.com/lianlian33/InteractiveHtmlBomForAD（上游 master 为 v0.3.16，本版已领先）
+上一版：InteractiveHtmlBomForAD 0.5.1（本版包含其全部改动）；正式发布说明见 版本更新说明_V1.0.00.md
+
+
+★ 2026-09-24（续）· AD 导出面板（对话框本身）4K 自适应缩放
+────────────────────────────────────────────────────────
+  现象（用户确认）：4K 屏上「小」的是 AD 里的导出对话框本身——表单几何
+  写死 96-DPI 的 452x452（mainWin.dfm），高分屏上就是一小块。
+  方案（dist/mainWin.js，**需重启 AD 生效**）：面板每次显示时（mainWinShow
+  开头 panelApplyScale()）把整个表单按系数放大——几何（Left/Top/Width/
+  Height/ClientWidth/ClientHeight）与字号（Font.Height）一起缩。
+  · 系数来自 config.ini [General] PanelScale（本机已写入 auto）：
+      auto   按最清晰显示器的物理分辨率自适应：>=3600 -> 2.0，
+             >=2800 -> 1.5，其余 1.0（WMI 查 Win32_VideoController，
+             查不到/查询失败回退 1.5）；
+      数字   固定倍率，如 1.5、2；1 = 不缩放；钳制 0.5–4；
+      空/0/非法  -> 1.5（1080p 上也不违和的保守默认）。
+  · 幂等：首次显示捕获 dfm 原始几何，之后每次都从原始值 x 系数重算，
+    重复打开不会叠乘；换系数后重开对话框即生效（若实例没被释放、重开
+    无变化，重启 AD 一次即可）。
+  · 遍历用 ComponentCount/Components[i] + ControlCount/Controls[j] 双通道
+    （ScriptForms 不能按名字访问嵌套控件，两种暴露模型都能盖住）；
+    缺几何属性的非可视件（TSaveDialog）自动跳过——注意纯 JS 读不到的
+    属性返回 undefined 而不抛错，靠 isFinite 校验挡住 NaN 回写。
+  · auto 模式插显示器即插即用：下次打开对话框按新主屏重新判定。
+  校验：scratch/panel_scale_test.js 40 项全过（平面/层级两种 ownership
+  模型、幂等、从原始值重算、钳制、auto/WMI 各分支、ES3/ASCII 门禁）；
+  node --check 过。
+
+
+★ 2026-09-24 · 换电脑两连修：注入找不到 node（0x80070002）+ 4K 界面自适应
+────────────────────────────────────────────────────────
+一、原理图注入 0x80070002（换新电脑后必现）
+  根因：dist/mainWin.js 的 injectFindNode() 候选表里是上一台机器的硬编码
+  路径（C:\Users\administrator1\...），新机器上全部落空后回退成裸 "node"，
+  而 AD 进程的 PATH 里没有 node → WScript.Shell.Run 报 0x80070002。
+  修复（dist/mainWin.js，**需重启 AD 生效**）：
+  · 候选顺序改为：config.ini [General] NodePath → 环境变量展开的
+    ProgramFiles / ProgramFiles(x86) / ProgramW6432 下的 nodejs\node.exe →
+    %LOCALAPPDATA%\Programs\nodejs\node.exe →
+    %USERPROFILE%\.workbuddy\binaries\node\versions\*\node.exe（逐版本枚举，
+    不再写死用户名和版本号）→ 字面 C:\Program Files 兜底 → 裸 "node"。
+  · 0x80070002 的报错文案改为可操作指引：装 Node.js，或在 config.ini 的
+    [General] 节加 NodePath=<node.exe 完整路径>。config.ini 是运行时读取的，
+    改完不用重启 AD，重新导出一次即可。
+  · 本机已在 config.ini 写入 NodePath（WorkBuddy 的 node），所以即使不重启
+    AD、直接重新导出，注入也应成功。
+  校验：scratch/node_inject_test.js 9 项全过（node 定位、真跑 inject_schem.js
+  的退出码路径、0x80070002 指引文案、ES3/ASCII 门禁）。
+
+二、4K/高分屏界面自适应（web/，重新导出一次即生效，不用重启 AD）
+  现象：4K 屏（系统缩放低）下整个导出页面偏小。
+  方案：页面用 CSS zoom 自缩放——自动模式按「窗口宽 / 1920」算倍率
+  （1080p≈1x、2560≈1.35x、4K@100%≈2x；上限 2、只放大不缩小；浏览器缩放
+  已放大时 innerWidth 变小、倍率自动回落，不会二次放大）。
+  齿轮菜单新增两行：「界面缩放」滑条（50%–200%）+「界面缩放自适应屏幕」
+  开关（默认开）；选择按板子记忆（localStorage），设置文件可导入导出。
+  实现要点：
+  · web/util.js   uiScaleFactor / autoUiScale / applyUiScale / setUiScale /
+                  setUiScaleAuto；settings.uiScaleAuto / uiScale；
+                  initDefaults 读回；overwriteSettings 导入（旧设置文件缺键
+                  时保持默认，不会把人踢回 100%）。
+  · web/render.js canvas 背板与指针坐标统一走 canvasPixelRatio() =
+                  devicePixelRatio × uiScaleFactor——放大后画布依然清晰，
+                  点击 / 拖动 / 滚轮缩放的映射不变。
+  · web/ibom.js   window.onresize 先 applyUiScale（倍率变了就不再重复
+                  refit）；BOM 列宽拖动与落点指示线把视觉像素换算回布局
+                  像素，缩放下拖列宽不再漂移。
+  · 关掉自适应开关 = 与旧版行为完全一致（zoom 移除、倍率 1）。
+  校验：scratch/uiscale_test.js 18 项全过（各分辨率倍率、上下限钳制、菜单
+  联动、手动/自动持久化与换页保留、倍率变化时 refit 只跑一次）；
+  util.js / render.js / ibom.js node --check 全过。
+
+三、遗留
+  · schem_standalone（离线原理图单页）尚未加缩放，需要的话下轮补。
+  · AD 里的导出对话框本身偏小：已由脚本侧解决，见上文「2026-09-24（续）
+    AD 导出面板 4K 自适应缩放」（config.ini PanelScale）。若运行时缩放
+    效果仍不理想，可再试系统侧：右键 AD 快捷方式 → 属性 → 兼容性 →
+    更改高 DPI 设置 → 勾选「高 DPI 缩放替代」选「系统(增强)」。
+
+
+★ 2026-09-23（最新）· 修「原理图是空的」：切换视图 + 脚本版本自证
+────────────────────────────────────────────────────────
+起因（用户实测截图）：导出页左栏一片空白、看不到原理图。
+
+一、两个真原因，都已修
+  1. **AD 一直在跑上一次编译好的旧脚本**。AD 的脚本工程在一个会话里只编译
+     一次，`Initialize.bat` 重建 bundle 之后不重启 AD，导出的页面里就**没有
+     原理图数据，连诊断都没有**。现在页面能自证：AD 侧 `ecad/AD10sch.js`
+     定义 `SCH_BUILD_STAMP`，`core/ibom.js` 把它写进 `pcbdata.adbuild`。
+     页面据此区分「读取器跑了但没读到」和「压根没有读取器」；缺标记时直接
+     提示：旧脚本 → 完全退出 AD 重开再导出。
+  2. **`#schemdiv` 上带了内联 `style="display:none"`**。内联样式压过一切
+     样式表规则，所以「原理图」按钮永远揭不开这块面板 → 左栏空白。
+     现在：模板不带内联 display，由 `changeLeftPane()` 用内联样式显式互斥
+     控制 `#bomwrap` / `#schemdiv`；CSS 里不再有 `.show-schem` 规则
+     （两套机制并存就会打架，而内联那套永远赢）。
+     测试教训：假 DOM 没有层叠，这类 bug 只能靠读源文件断言抓住，
+     schematest 新增 B24–B27 守住「模板不许出现内联 display」。
+
+二、读不到原理图时不再是一片空白
+  · 面板给「未读取到原理图」+ 原因 + 诊断全文（`#schememptywhy` /
+    `#schemdiagtext`）+「复制诊断」按钮（`schemCopyDiag()`：剪贴板 API →
+    textarea → 手动选中，三级降级）；
+  · 诊断最后一行固定输出 `AD 脚本标记:`，一眼看出是不是旧脚本。
+
+三、新增工具：不用 AD 也能验页面
+  `node <skill>/scripts/inspect-export.js "<导出的.html>"`
+  直接解出页内 lz-string 数据，打印元件数 / BOM 组数 / 每张原理图的图元
+  计数，并给出结论（有数据 / 读取器失败并列出原因 / 旧脚本）。
+  对本次用户页面的判定：footprints 74、无 schem、无 schemdiag、无标记
+  → 旧脚本，重启 AD 即可。
+
+四、其它
+  · 上一轮加的 `resolvePcbBoard()` 继续生效：活动文档是原理图时也能导出，
+    不再弹「Current document is not a PCB document」；
+  · bundle 0.3.17 = **2572934** / 0.4 = **2572931**（差 3 字节是路径长度）；
+  · schematest 57 → **85** 断言，其余套件不变，两棵树全绿。
+
+★ 2026-09-23 · 新增原理图页：BOM / PCB / 原理图三向联动
+  （布局部分——BOM 下方的拖动条分栏——已被上面一节取代，下面是当日原始记录）
+────────────────────────────────────────────────────────
+需求：加一块原理图，页面放在 BOM 表**下面**，能和 BOM、PCB 互动。
+
+一、页面位置与布局
+  · 原理图面板就放在左栏 BOM 表的正下方（`#bomwrap` 之后、`#schemdiv`），
+    右栏仍是 PCB 正反面 —— 三块同屏，不需要切页签；
+  · 中间一条拖动条 `#schemgrip`，可以上下拖着改原理图区域的高度；
+  · **读不到原理图时面板不会消失**，而是留在原处显示一行「未读取到原理图」，
+    鼠标悬停能看到具体原因（诊断信息写在 title 上）。静默消失会让人以为
+    根本没这个功能。
+
+二、原理图数据从哪来（AD 侧，新增 `ecad/AD10sch.js`，约 29 KB）
+  · 遍历当前工程里所有 `.SchDoc`，逐张读：
+    - 元件：位号 / 值 / 封装 / 坐标 / 朝向 / 引脚（编号、名称、长度、朝向）
+      / 符号图元（线、矩形、圆弧、多边形）
+    - 图纸级：导线、总线、总线入口、网络标签、端口、电源端口、文本、
+      连接点、图纸符号及其图纸入口
+  · **全程 try/catch，任何一个环节读不到就跳过，绝不抛异常**：导出 HTML
+    这个主流程不会因为原理图失败而失败；
+  · AD10 的 Sch 脚本 API 与本项目已在用的 PCB API 不是同一套，各类型常量
+    在不同版本里名字/取值可能不同 —— 代码对每个常量都给了多个候选名，
+    取不到就用不了；
+  · **拿不到类型过滤器就干脆不遍历**（早期版本会退化成"看见所有对象"，
+    结果同一批元件被每种类型各读一遍，重复十几倍，schematest 的 A 段就是
+    为这个写的）。
+
+三、网页渲染（新增 `web/schem.js`，约 22 KB）
+  · 用 SVG 重绘，不是贴图：线条清晰、可无限缩放；
+  · 原理图 Y 轴朝上、SVG Y 轴朝下 —— 渲染时按内容包围盒做镜像翻转，
+    否则整张图是倒的；
+  · `viewBox` 按内容自适应并留边距；滚轮缩放、按住拖动平移、双击复位；
+  · 多张图纸时顶部出切换按钮，一次显示一张；
+  · 每个元件的图元包在一个可命中的组里，点一下就能选中。
+
+四、三向联动
+  · 点 BOM 某行 → PCB 高亮 + 原理图对应元件高亮（跨图纸也找得到）；
+  · 点 PCB 元件 → BOM 行 + 原理图元件一起高亮；
+  · 点原理图元件 → 反查 BOM 行（ibom.js 建 `refToHandler` 时用**位号**
+    作键，不用元件下标 —— 下标随重新导出而变，旧存档会错位）并高亮 PCB；
+  · 高亮走已有的 `HIGHLIGHT_EVENT`，原理图只当订阅者，不改动原联动逻辑。
+
+五、开关与构建
+  · `config.ini` 的 `[General]` 新增 `IncludeSchematic`（默认 1）。
+    关掉就完全不读原理图，导出速度回到从前；
+  · 原理图脚本是 bundle 的**第 9 个源**：`Initialize.bat`、`rebuild-bundle.js`
+    的 PARTS、`.workbuddy/wsh_parse_check.js` 的清单**三处**都同步加了
+    （漏一处，重建脚本就会报清单核对失败）；
+  · `core/ibom.js` 把 `pcbdata.schem` 注入数据，并新增 `///SCHEMJS///`
+    槽位把 `web/schem.js` 塞进导出页；`web/` 是导出时从磁盘读的，改网页
+    **重新导出一次 HTML 即生效，不用重启 AD**。
+
+六、验证与已知边界
+  · 新增 `.workbuddy/schematest.js` **57 条全过**（AD 侧用假 Sch 对象在 vm
+    里跑读取器；网页侧用假 DOM 跑渲染器，检查翻转坐标、viewBox、命中框、
+    事件接线、无数据时的提示）；
+  · **AD10 的原理图脚本 API 未能在真机验证**（本机没有可连的 AD）。
+    代码按"读不到就降级"写死，最坏情况是原理图页显示「未读取到原理图」
+    而 BOM/PCB 一切照旧。第一次用请留意这一行提示，如果出现了，把鼠标
+    悬停看到的诊断内容发我，我据此补常量。
+
+
+★ 2026-09-22 21:30 · 打印丝印：自动缩放，一层一页
+────────────────────────────────────────────────────────
+现象：点「丝印」打印，整块板子被切成几段 —— F、B 两层打出来 5 页，每页只有
+板子的一条横带（用户截图：打印预览「总数：5 纸张」，板子在页与页的接缝处被
+横向锯开）。
+
+根因，一个数字就够：那段打印页样式对图片写死了 `max-height: 250mm`。
+  · 竖版 A4 扣掉 10mm 页边距后可用高度 277mm —— 250mm 装得下，所以这行
+    一直没暴露；
+  · 横版 A4 可用高度只有 190mm —— 250mm 高出 60mm，图片底部溢出到下一页时
+    浏览器是**切断**不是缩小，板子于是被锯成几段。
+  一个固定的毫米值不可能同时对横竖两个方向都成立，这才是病根。
+
+修法：给每层一个**与纸张等大的固定高度盒子**；图片自己再占一个**绝对毫米**
+高度的盒子，在**宽、高两个方向**都被限制为该盒子的 100%，并追加
+`object-fit: contain`（过大时等比缩进盒子，不裁切、不拉伸）。
+  · 所有尺寸都是绝对毫米，**不依赖任何百分比高度** —— 打印时各浏览器对
+    「从 flex 推导出的高度能不能当百分比基准」并不一致。第一版修法用了 flex，
+    复核时判定这个不确定性不可接受，改成了现在这样；
+  · 每页高 = A4 可用高 − 1mm。留 1mm：内容正好等于页高时可能因取整多吐
+    一张空白页；
+  · 图片盒高 = 页高 − 9mm，那 9mm 是给标题的（4mm 字号 / 1.4 行高 + 2mm
+    下间距 ≈ 7.6mm）。printtest 会从生成的 CSS 里把这两个数读出来核对；
+  · 层间 `page-break-after: always`，`.page:last-child` 恢复 `auto`，
+    尾部不多出空白页；
+  · `break-inside: avoid` 保证一层绝不被从中间切开。
+结果：F、B 各一页，共 2 页；板子缩放到装得下为止（长边贴边）。
+
+顺带两处小修：
+  · 打印页补 `<meta charset="utf-8">`（之前没声明编码，板名含中文时 h3
+    标题有变乱码的风险；板名本身画在图里，故只影响标题文字）。
+  · `w.onload` 移到 `w.document.close()` **之前**注册，并先 `w.focus()`。
+    close() 会把 load 事件排进队列，晚一步挂的处理器有丢事件的可能。
+
+文件：`web/util.js`，只动 `printSilkscreen()` 一个函数 —— web/ 是导出时从
+磁盘读取的，**重新导出一次 HTML 即生效，不用重启 AD**。
+
+校验：新增 `.workbuddy/printtest.js` **38/38**（把 printSilkscreen 抠出来在
+vm 里真跑，逐条检查它交给浏览器的分页 HTML）。并做了反向验证 —— 同一套断言
+指向改动前的备份文件时有 **17 条失败**，其中正包括「不许出现 250mm」「不许对
+图片用固定 mm 的 max-height」和「图片盒必须是绝对毫米而不是推导出的百分比」，
+证明断言不是空转。
+
+说明：这是**结构验证** —— 断言「图片盒不可能超出纸张」这个几何关系，而不是真的
+执行了一次打印。本机无头浏览器不产出 PDF（`--print-to-pdf` 的几种参数组合都试过，
+全是空输出），「模拟打印再数页码」走不通。请在浏览器里实际打开一次打印预览确认。
+
+
+★ 2026-09-22 21:00 · 「走线网络」开关改为「网络名」，焊盘 / 走线 / 过孔统一
+────────────────────────────────────────────────────────
+设置菜单里那个「走线网络」复选框，现在叫「网络名」，并且从"只管网线上的标签"
+扩到管全部三种网络名标签：**焊盘、过孔、走线**。
+
+★ 先说一个事实：过孔和焊盘本来就是同一件事
+  AD 侧解析时自由过孔被放进 footprintNoBom.pads（见 ecad/AD10.js 的注释），
+  所以"焊盘网络名"这一遍绘制天然就盖住了过孔。三类里有两类本是一体，
+  真正被漏掉的是**焊盘那一类**——它以前一直在画，不受任何开关管。
+
+★ 改了什么（全在 web/：重新导出一次 HTML 即生效，**不用**重建 bundle、不用重启 AD）
+  · web/ibom.html  文案「走线网络」→「网络名」；复选框从 tracksAndZonesCheckboxes
+                   里**挪出来**（原来板子没有走线数据时整块隐藏，可网络名还要管
+                   焊盘和过孔，不能跟着一起消失）。视觉位置仍在「走线 / 铺铜」下面。
+                   id 改 netNamesCheckbox，handler 改 netNamesVisible。
+  · web/ibom.js    trackNetsVisible() → netNamesVisible()，storage 键同此更换。
+  · web/util.js    设置键 renderTrackNets → renderNetNames（声明 / 存档 / 读回三处）。
+                   **旧值会迁移**：localStorage 的 trackNetsVisible、旧设置文件里的
+                   renderTrackNets 都会读一次给新键定初值，你原本的选择不会丢。
+  · web/render.js  drawNetLabels() 现在只认 settings.renderNetNames 一个开关，
+                   同时门禁 drawPadNetLabels（焊盘 + 过孔）与 drawTrackNetLabels。
+
+★ 两个有意的取舍（不合意的话，改起来都是一句话）
+  1. 此开关**不跟**「焊盘」「走线」两个图形开关串联。那两个关的是**图形**，这个关的
+     是**名字**；串起来会让名字开关在图形关掉时看起来"失灵"，正是这次要消除的困惑。
+     现在它单独说了算：勾上三类名字全出，取消三类全没。
+  2. 唯一的联动是「隐藏过孔」：过孔隐掉时它的网络名一起隐掉——没有图形的名字是噪声。
+     判据与 drawPad() 完全一致（drillsize ≤ 0.6mm）。
+
+本轮校验（全部重新跑过，非引用旧结果）：
+  · labeltest **146/146**（新增 16 条：11 条守开关接线，5 条真跑渲染，验证
+    「一个开关同时管住焊盘 / 过孔 / 走线」以及隐藏过孔会带走它的名字）
+  · coltest 115/115、pagetest 33/33、check_slots 3/3、zh_leftover clean
+  · zh_template --check：57 → **56** 条锚点，0 条残留英文。顺手删掉一条**过期锚点**
+    `alert("Print error: ...")`——它属于已删除的 printBom()，留着会让 --check
+    直接拒绝运行（上一轮漏做的收尾）。
+  · xlsxcheck + xlsx_verify 全过、ES3 门禁 8 个源全过
+  · bundle **2526120 bytes**，与 8 个源逐字节一致（本轮未改 bundle 源，故未重建）
+  · 更正：下一节里的 bundle 2526119 是笔误，实际为 2526120
+
+
+★ 2026-09-22 深夜（已被上一节取代）· BOM 改由网页「另存为」导出，AD 侧那条路撤下
+────────────────────────────────────────────────────────
+上一节的 AD 侧方案实测没有跑通：生成 HTML 的同时写一份 xlsx，要靠机器上装有
+Excel 或 WPS 的 COM 组件，缺一样整条路就废。现在撤掉那条路，改回网页导出。
+
+★ 改了什么
+  · core/ibom.js
+    main() 里「写完 HTML 就调 exportDefaultBom(pcb, base)」的接线已摘除。
+    生成 HTML 的路径上现在**不碰任何 COM**，本机有没有 Excel / WPS 都不影响。
+    那几个导出函数仍然保留（未删），想恢复只需把那一行接回去。
+    注意：改了 core/ 属 bundle 源，仍需运行 Initialize.bat 并**重启 AD**，
+          否则 AD 还在用旧脚本，可能仍会尝试旧的 COM 调用。
+  · web/util.js
+    BOM 按钮导出走「另存为」对话框。浏览器不给对话框时，会**明确提示**文件
+    去了下载文件夹，不再悄悄下载（见下）。web/ 是运行时从磁盘读的，
+    重新导出一次 HTML 即生效，**不需要**重建 bundle。
+
+★ 这一步与本机有没有 Excel / WPS 完全无关
+  网页版的 xlsx 是页面自带的 zip 写入器拼出来的标准 Office Open XML 文件，
+  **本机不需要任何表格软件就能生成**。要打开它，任意一个能读 xlsx 的程序都行
+  （Excel / WPS / LibreOffice / Numbers / 在线预览），但生成不依赖它们。
+  这条路上既没有 Excel.Application，也没有 KET.Application，一个 COM 都不调。
+
+★ 导出时会遇到的三种情况
+  情况一：Chrome / Edge，且已开启 File System Access
+     → 弹出「另存为」对话框，可自选目录。选过一次之后浏览器会**记住**那个
+       文件夹（靠 id = "interactivehtmlbom-bom"），此后默认就在那里。
+  情况二：Chrome / Edge，未开启
+     → 弹提示：文件已保存到下载文件夹，并给出开启办法。
+  情况三：Firefox / Safari（从不提供该 API）
+     → 同上，退回到下载文件夹并给出提示。
+
+★ 想让它每次都弹「另存为」（建议先做这一步）
+  1. 用 **Chrome 或 Edge** 打开导出的 HTML（双击通常就是 Edge）
+  2. 地址栏输入 chrome://flags/#file-system-access → 设为 Enabled
+  3. 完全退出并重启浏览器，重新打开 HTML，点 BOM 按钮
+  4. 第一次手动选到 PnPout（也就是这个 HTML 所在的文件夹）即可，
+     之后每次默认就是它
+  补充：file:// 打开的页面还需要浏览器允许本页访问本地文件。万一对话框仍不
+        出现，文件照样会生成（落在下载文件夹）并给出提示，不会导出失败。
+
+  ★ 一个原则改了：不再静默回退
+  以前：对话框用不了 → 文件悄悄进下载文件夹 → 看上去就像导出失败。
+  现在：同一种情况 → 弹窗说明「已保存到下载文件夹 + 怎么拿到对话框」。
+        用户自己按取消（Esc）则什么都不做：不下载，也不打扰。
+
+本轮校验（全部重新跑过，非引用旧结果）：
+  · labeltest **130/130**
+  · coltest **115/115**（新增 6 条断言，专门守「回退必须提示」这条承诺）
+  · pagetest **33/33**（原来守 AD 侧接线的 7 条，改成守网页导出：
+    「没有任何地方调用 exportDefaultBom」「helper 仍在以免将来想恢复」
+    「页面确实走 saveFileAs」「且退回 saveFile」「xlsxBytes 不依赖 COM」）
+  · check_slots 3/3、zh_leftover clean、xlsxcheck + xlsx_verify 全过
+  · ES3 门禁：WSH 用 new Function(src) 编译 8 个 bundle 源 → 全过
+  · bundle 重建为 **2526120 bytes**（8 个源之和一致，较上一版 +350）
+  · AD 侧那套保留函数的回归**仍然全过**（gen_bom_probe + verify_bom_export
+    29/29）——意思是代码没坏，随时能接回来，只是现在没有任何地方调用它。
+
+
+★ 2026-09-22 晚（已被上一节取代）· AD 侧同时把 BOM 写进 PnPout
+────────────────────────────────────────────────────────
+⚠ 本节描述的接线（main() 调用 exportDefaultBom）已在上面这一节**摘除**，
+  因为它在没有 COM 服务器的机器上会失败。函数体保留在 core/ibom.js 里备用。
+
+下面那节说过：网页**无法**指定保存路径，所以「BOM 和 HTML 同目录」在网页侧做不到。
+本节由 AD 侧解决——生成 HTML 时顺手把 BOM 写到同一个 PnPout 目录。
+
+core/ibom.js 的 main()：写完 <板名>.html 之后紧接调用
+exportDefaultBom(pcb, base)，产出 <板名>-BOM.xlsx，与 HTML 同目录、同前缀。
+整段用 try/catch 包住：**BOM 出问题绝不能连累 HTML 生成**。
+
+新增函数（全部纯 ES3，无外部依赖）：
+  · bomRowsForExport(pcb)     从 pcbdata.bom.both 取默认分组 BOM，摊平成
+                              [位号, 描述, 参数值, 封装, 数量] 五个字段一行。
+                              条目布局来自 rowsToArray()：
+                              [qty, value, footprint, refs, extras, _, description]
+  · createSpreadsheetApp()    依次尝试 Excel.Application → KET.Application →
+                              Ket.Application → ET.Application，取第一个能创建的
+  · writeBomXlsx(rows, path)  用 COM 写 .xlsx（SaveAs 第二参数 51 = OpenXML）
+  · writeBomCsv(rows, path)   降级方案：UTF-8 带 BOM 的 CSV
+  · exportDefaultBom(...)     先试 xlsx；四个 ProgID 全失败才退 CSV 并弹提示
+
+★ 为什么不能只用 Excel.Application 判断「有没有装 Excel」：
+  本机实测**没有** Microsoft Excel（HKCR\Excel.Application 查不到，创建报
+  「Automation 服务器不能创建对象」），但装了 WPS，而 WPS 注册的
+  KET.Application **完全可用**，且自报 Name = "Microsoft Excel"、
+  Version = 12.0（兼容层）。所以四个 ProgID 都试一遍，WPS 也算成功。
+
+★ 除「数量」列外，所有列先设 NumberFormat = "@"（文本）**再**写值。
+  COM 比网页版更容易踩这个坑：实测直接把 "0603" 写进去，读回来是数字 603。
+  单元格格式必须在赋值**之前**设好，否则 Excel 已经决定了类型。
+
+★ 与 Excel/WPS 的会话安全：只有当服务器**当前没有打开任何工作簿**（
+  Workbooks.Count == 0）时才认定是「我们自己启动的」，此时才设 Visible=false
+  并在结束时 Quit()。如果用户自己正开着 WPS/Excel，就不动窗口、不 Quit，
+  只关闭我们新增的那个工作簿——不能因为导出 BOM 把用户正在编辑的窗口隐藏掉。
+
+★ AD 脚本源码保持**纯 ASCII**：中文表头与中文提示一律写成 \uXXXX 转义。
+  原因：AD 引擎读源文件时按 UTF-8 还是按 ANSI/GBK 解释并不确定，转义形式在
+  两种编码下都正确。pagetest 有一条断言专门守住这一点。
+
+兜底：若四个 ProgID 全部创建失败（机器上既没 Excel 也没 WPS），改为导出
+<板名>-BOM.csv 并弹提示说明原因，**不会什么都不产出**。
+
+校验：
+  · 用 WSH 的 JScript 引擎（与 AD 同源）实测真实导出：6 行 1281 ms、
+    300 行 3541 ms（含 WPS 启动开销）、空 BOM 正确地不产生文件
+  · openpyxl 读回 **29 项全过**：真 xlsx（magic 504b0304）、sheet 名 BOM、
+    表头加粗、冻结 A2、筛选范围 A1:E301、"0603"/"100" 保持**文本**（不是 603）、
+    数量为 int、中文描述无损、空值为 None、XML 元字符 '10K "1/4W" <1%>' 往返
+    无损、CSV 的 UTF-8 BOM 与逗号/引号转义经 csv 模块解析验证
+  · ES3 语法门禁：用 WSH 的 new Function(src) 编译全部 8 个 bundle 源
+    （含 2.4 MB 字体文件）—— 全过。node --check 对此无帮助，它接受 ES5 语法
+  （历史记录：以下数字是那条接线还接着的时候。接线撤下后，其中 7 条 AD 侧
+   断言已改写为守网页导出，请以最新一节的校验为准。）
+  · pagetest **33/33**（当时新增 7 条守 AD 侧接线）
+  · labeltest 130/130、coltest 109/109、check_slots 3/3、zh_leftover clean
+  · bundle 重建为 **2525770 bytes**（8 个源一致，较上一版 +6382）
+
+⚠ 需要重启 AD：core/ibom.js 是 bundle 源，改完必须重跑 Initialize.bat 重建
+  dist/InteractiveHtmlBomForAD.js（本次已代为重建）**并重启 Altium Designer**
+  才会生效——AD 会缓存脚本。
+
+★ 2026-09-22 晚 · 工具栏「BOM」按钮改为导出 Excel（.xlsx）
+────────────────────────────────────────────────────────
+原来点「BOM」是弹打印窗口（输出 PDF）；现在直接导出一个 .xlsx 文件，
+并优先弹出**「另存为」对话框**（见下面「导出路径」一节），可存到与 HTML
+同一个文件夹。
+
+生成的页面是**离线单文件**，不能引 CDN 库，所以写入器是自己写的：
+  · .xlsx 本质是「若干 XML 部件的 zip」，而 zip 条目可以**不压缩存储**，
+    因此一个 CRC32 加 zip 记录布局就够了，不需要任何压缩库。
+  · web/util.js 新增：zipCrc32 / utf8Bytes / zipStore / xmlEscape /
+    xlsxColName / xlsxSafeName / xlsxSheetXml / xlsxBytes /
+    bomSheetFromDom / exportBom。原 printBom() 已删除。
+  · 列过滤沿用原来那套判据（按 data-field 认列，**不按固定下标**）：
+    行号列与复选框列不导出，因此任意拖动列序都安全。
+  · 只有「数量」列写成**数字**（Excel 可直接求和、排序）；其余一律文本——
+    否则 "0603" 这类封装会被当成数字 603，前导零丢失。
+  · 表头加粗、冻结首行、自动筛选；列宽按最宽单元格估算（限制 8~60）。
+  · 文件名 <板名>-BOM.xlsx；工作表名取板名，自动剔除 Excel 非法字符
+    （[]:*?/\ 等）并截到 31 字符上限。BOM 为空时给出提示，不产出空文件。
+
+web/ibom.html：按钮的 onclick 由 printBom() 改为 exportBom()，并加提示
+「导出 BOM 为 Excel 表」。「丝印」按钮（printSilkscreen）仍是打印/PDF，未动。
+
+★ 导出路径：优先「另存为」，让 BOM 能和 HTML 放在一起
+────────────────────────────────────────────────────────
+网页无法指定保存路径——<a download> 只能落到浏览器的下载目录，这是浏览器的
+安全限制，不是代码问题。网页上唯一能选路径的接口是 File System Access API。
+
+web/util.js 新增 saveFileAs(filename, blob, opts) 与 pickerAvailable()，
+exportBom 改用它：**能用对话框就弹对话框，不能用就原样退回下载**。
+
+  能用时：window.showSaveFilePicker({ suggestedName, id, types })
+    · id = "interactivehtmlbom-bom"：浏览器会**记住该 id 上次用过的目录**，
+      所以只要第一次把 BOM 存到 HTML 所在文件夹，之后每次默认就打开那里。
+    · types 限定 .xlsx；suggestedName 为 <板名>-BOM.xlsx。
+    · 必须**同步**调用（在 click 处理里直接调），否则用户手势失效会被拒。
+    · 用户在对话框点「取消」= 明确表示不要，此时**不会**偷偷改走下载。
+    · 写入：handle.createWritable() → write(blob) → close()。
+
+  不能用时（自动退回下载，按钮绝不会变成死路）：
+    · 从未实现该接口的浏览器（Firefox / Safari）；
+    · **file:// 打开的页面**——Chromium 默认不给 file:// 这个权限，需用户在
+      chrome://flags/#file-system-access 启用该 API，并在「站点设置 →
+      Local file system」里对本页放开。即双击 HTML 打开时，默认行为与改动前
+      一致（还是下载到下载目录）；
+    · 任何其它拒绝（调用即抛错，或返回的 promise 被拒）同样退回下载。
+
+※ 上面这条限制**已在文首那节里由 AD 侧解决**：生成 HTML 时把 BOM 直接写进
+  PnPout，与 HTML 必然同目录。网页那个按钮**保留着**，继续负责导出你当前
+  **勾选 / 列序 / 分组**之后的 BOM——那部分状态 AD 侧拿不到。
+
+校验：
+  · coltest **109/109**（原 94）——printBom 那组断言改写为 xlsx 导出断言：
+    zip 六个部件齐备、条目全部 stored、CRC 正确、MIME 与文件名、列过滤、
+    数量为数字、表头加粗、冻结首行、XML 转义、sheet 名净化与 31 字符上限；
+    另新增 15 条覆盖「另存为」的每条分支：无接口→下载、有接口→只弹对话框
+    不下载、取消→不下载、被拒（promise 拒绝 / 同步抛错）→退回下载，
+    以及 suggestedName / id / types 三个参数确实传对了
+  · pagetest **33/33**（本轮新增 2 条）——按钮确实指向 exportBom、printBom
+    已从页面消失、xlsx 写入器确实进了生成的页面、导出确实走 saveFileAs、
+    降级用的 pickerAvailable 与 showSaveFilePicker 也在页面里
+    （另有 7 条守 AD 侧接线，见文首）
+  · `node .workbuddy/xlsxcheck.js` 生成 303×5 样例工作簿，再用 openpyxl
+    读回校验 **17 项全过**（venv：~/.workbuddy/binaries/python/envs/default）
+    —— 即真实 Excel 库认可该文件：CRC 校验通过、表头加粗、冻结窗格、
+    数字类型正确、中文与 XML 元字符往返无损
+  · labeltest 130/130、check_slots A/B/C 全部 parses、zh_leftover clean
+
+纯 web/ 改动：**不用重跑 Initialize.bat、不用重启 AD**，在 AD 里重新导出
+一次 HTML 即可生效。
+
+
+★ 2026-09-22 晚 · 导出的 HTML 页面已汉化（直改模板，不引入语言层）
+────────────────────────────────────────────────────────
+按用户要求，本次只汉化**导出的 HTML 页面**这一层，而且用最直接的
+「就地改模板文案」办法：把 web/ibom.html / web/ibom.js / web/util.js 里的
+英文界面文字直接换成中文，**不引入任何语言机制**——
+没有 lang.js、没有 data-i18n 标记、没有语言切换开关、config.ini 也没动。
+
+  · web/ibom.html  46 处：菜单项、统计表、文件信息格、存图与设置菜单，
+                   外加两个搜索框的 placeholder（位号查找 / 筛选）
+                   另把 <html lang="en"> 改为 <html lang="zh-CN">
+  · web/ibom.js     8 处：BOM 列标题（网络名 / 位号 / 描述 / 参数 / 封装 / 数量）、
+                   列宽拖动提示、以及 &lt;no net&gt; → &lt;无网络&gt;
+  · web/util.js     3 处：三个 alert 文案（错误 / 打印错误 / 非设置文件）
+
+保留英文的（按用户要求，属行业通用缩写）：BOM、No BOM、DNP、SMD、TH、mm。
+"Rev: " 前缀按要求保持原样。
+
+**绝不能翻译的**（已刻意未动，改动脚本里也写了注释）：
+「InteractiveHtmlBom settings」是设置文件的**格式标记**，saveSettings() 写它、
+loadSettings() 拿它比对，一旦翻译，所有已导出的设置文件都导不进来。
+另外 document.title 的 " BOM" 后缀、GitHub 链接文字也都保留。
+
+Borland 窗口那一层（AD 弹出的设置窗体）**本次不做**：dist/mainWin.js、
+dist/mainWin.dfm、Borland_Lang.js、.PrjScr、Initialize.bat、config.ini
+一律未改，仍为纯英文。
+
+为什么不再用语言层：上一版做过「Borland_Lang.js + web/lang.js + data-i18n」的
+双语架构，注入后从 AD 运行 startWin 一直弹「灾难性故障」，因而整体回滚
+（真因是脚本尾逗号，见 0.6 节的 ES3 规则）。直改模板没有这层机制、不需要 AD
+重新解析脚本，风险最低，也最符合「生成出来就是中文」的需求。
+
+留底：语言层那版成品在 **.workbuddy/backup-zh/**；
+本次改动前的英文原文在 **.workbuddy/backup-en-2026-09-22/**（三个文件）。
+
+校验：pagetest 21/21、labeltest 130/130、coltest 84/84 全过；
+残留扫描（.workbuddy/zh_leftover.js）报 clean —— 无遗漏英文可见文案、
+无 i18n 层回流、格式标记未被翻译；装配冒烟 194201 bytes / 224 个汉字 /
+无未填槽位 / script 块可解析。bundle 与 8 个源文件逐字节一致
+（2519388 bytes），**无需重建**：web/* 是导出时从磁盘读取的，
+改网页文件不必重跑 Initialize.bat、也不必重启 AD。
+
+
+★★ 2026-09-22 晚 · 顺带修掉一个致命 bug：导出的页面此前整页是死的 ★★
+────────────────────────────────────────────────────────
+**症状**：用当前代码导出的 HTML，`<script>` 块**根本解析不了**
+（`Unexpected token ')'`），BOM 表、画布、菜单全部不工作。
+
+**原因**：`core/ibom.js` 的 `generateFile()` 用
+`html.replace("///X///", 文件内容)` 填槽位。JS 里**替换串**中的 `$`
+是特殊语法，`$&` 表示「整个匹配到的文本」。而 `web/pep.js` 第 43 行
+（PEP v0.4.3 原版）有 `var ... ,Z=u.pointermap,$=window.MSPointerEvent&&...`
+——那个 `$` 是个**变量**，紧接着的 `&&` 让它变成了 `$&`。
+于是拼接 pep.js 时，`$&` 被展开成槽位标记 `///POINTER_EVENTS_POLYFILL///`，
+`return ///...` 把该行余下内容变成注释，括号失衡，**整个 script 块报废**。
+
+**定性**：这是**上游一直存在的老 bug，与汉化无关**。已用对照实验证明：
+   A 当前文件 + 原样 replace  → 解析失败
+   B 当前文件 + 函数式 replace → 通过
+   C **汉化前的英文原版** + 原样 replace → **同样失败**
+
+**修法（只改 web/，无需重建、无需重启 AD）**：
+把 `pep.js` 里那个变量 `$` 改名为 `_msPointer`（声明 + 使用共 2 处），
+并在文件头注释里写明原因、禁止改回。修后 `$` 只剩正则 `/auto$/`
+那一个锚点，`$&` 归零。
+
+**为什么不去改 core/ibom.js**：更彻底的修法是给它加 `spliceSlot()`
+（把 payload 作为**函数**传给 replace，彻底关闭 `$` 特殊语法），
+但那属于 bundle 源，要重跑 Initialize.bat 并重启 AD。
+本次先用 web 层的最小改动消除现实故障——毕竟 `pep.js` 是**唯一**含
+替换模式的负载文件。
+
+**残留风险（已知、极低）**：`///PCBDATA///` 走 `compressToBase64`，
+字母表为 `A-Za-z0-9+/=`，**不含 `$`**，安全。
+只有用户自己的 `web/user.css` / `web/user.js` 若含 `$&` 才会再触发
+（默认这两个文件不存在）。要彻底免疫，需要做上面那个 core 侧改动。
+
+**新增常驻守卫**：`.workbuddy/check_slots.js` —— 按真实 replace 语义
+拼一遍页面，断言 script 块可解析、`$&` 不残留；以后改任何 `web/` 负载
+文件都该跑一下。
+
+★ 另外：0.4 / 0.5 / 0.6 三节描述的是回滚前那版「语言层汉化」与尾逗号修复，
+  保留作历史参考。0.6 里那条「ES3 语法上限」规则依然有效，写 AD 脚本务必遵守。
+
+
+零、2026-09-22 第二批改动（位号标签 / 暗黑模式）
+────────────────────────────────────────────────────────
+这一批在上一批（走线网络名 + No BOM）之上继续加了四件事。
+其中 0.4 原本是「语言层汉化」，该版已整体回滚；本次改用**直改模板**的方式
+重新汉化了 HTML 页面（见文首说明），所以下面正文里引用的菜单名（例如
+"Uniform label size"）现在页面上一律显示中文（统一标签字号）。
+
+0.1 位号、参数标签的字号与位置
+    · 页面上的位号（ref）和参数值（val）不再只有一种字号。新增
+      "Uniform label size"（字号统一）开关：
+        开 → 全部用 refFontSize / valFontSize 两个滑条的字号；
+        关 → 按封装大小自动算（footprintLabelMetrics），再夹在上下限之间。
+      "Ref label size" / "Value label size" 两个滑条分别调 ref 与 val 的字号（mm）。
+    · 标签可以用鼠标拖：拖位号或参数即可移动，双击复位。
+    · 拖动结果按 storagePrefix + "labelOffsets" 存进 localStorage，刷新后保留。
+    · 齿轮菜单里的 "Reset labels" 一键清除全部偏移。
+    · 实现要点：加了 boardPoint()（prepareCanvas 的逆变换）把鼠标坐标换算回
+      板面毫米；boardMmPerPixel() 保证缩放时抓取区大小合理；
+      命中判定与绘制共用同一套 anchor 计算，所以"看得见就点得到"。
+
+0.2 Altium 原生丝印文字独立开关（Native refs）
+    · 原来 "References" / "Values" 两个复选框同时管两批东西：Altium 自己放在
+      丝印层上的位号/参数文字，以及本页面另外生成的那批可拖动标签。
+      现在分开了，层级是：
+          Silkscreen（丝印层总开关）
+            └─ Native refs  ← Altium 自己的那份（drawText，#4aa 那种）
+            └─ References / Values ← 本页面生成的那份（可拖动）
+    · 新开关 "Native refs" 只控制 Altium 的那份。判定用 `=== false`，
+      所以旧存档页面（settings 里没有这个键）仍然照常显示，不会突然变空。
+    · 首次打开时用旧的 referencesVisible / valuesVisible 反推一次初值并写盘，
+      老用户升级后观感不变。
+
+0.3 暗黑模式下标签看不见
+    · 根因：drawFootprintLabels() 里写死了 refColor = '#000000'。
+    · 改成从 CSS 变量 --component-label-color 取色（浅色 #111111、
+      暗色 #f2f2f2），取值后 .trim() 并带字面量兜底——
+      画布读不到 CSS 时 ctx.fillStyle = "" 是静默忽略，不会报错，必须兜底。
+
+0.4 汉化：Borland 脚本窗口 + 生成的 HTML 页面
+    分两层，各自独立，互不依赖。
+
+    ① Borland GUI（dist/mainWin.js / dist/mainWin.dfm）
+       · 新增 Borland_Lang.js（工程根目录）：纯数据，含
+             LANG_DFM   —— 窗体各控件的英文标题，键 = 控件名
+             LANG_UI    —— 脚本自己弹出的提示文字
+             LANG_PACKS —— { en: {...}, zh: {...} }，键永不翻译，只翻译值
+       · 运行时按 config.ini 的 [General] Language 选包，认不出就退回 en。
+       · 查不到的键返回可见的 ??key?? 而不是空白，漏译会直接暴露。
+       · **Borland ScriptForms 不能按名字取嵌套控件**（mainWin.a.b 会报
+         "not an object"），但每个控件都是其宿主的一个属性，所以用
+         .ComponentCount / .Components[i] 自顶向下遍历，靠 owner[child.Name]
+         读属性。mainWin.dfm 里为此补了 9 个锚点：
+             4 个 TabSheet 的 Name（TabSheet1..4 本身名字没意义）
+             2 个 TStaticText 的 Name（StaticText1/2 同理）
+             3 个 HelpKeyword = "lang:xxx"（标题不唯一或太短：...、
+                                          Component no BOM、Open browser 等）
+       · 注意：mainWin.dfm 里 GroupBox4 和 CbBlacklistEmpty 的标题**结尾带空格**，
+         Borland_Lang.js 的英文表必须原样保留——语言层不允许悄悄改英文。
+
+    ② HTML 页面（web/lang.js 等）
+       · 页面是"生成一次、之后独立存在"的，运行时读不到 config.ini，所以
+         core/config.js 写入时就按 [General] Language 把 config.language
+         一起写进页面（新增 readLanguage() 辅助函数，ini 不存在时也是 "en"）。
+       · web/lang.js 里 PAGE_STRINGS = { en: {...}, zh: {...} }，
+         T(key) 按 config.language 选包，缺键退回英文，再缺退回键名。
+       · 静态标签用 data-i18n / data-i18n-title / data-i18n-placeholder
+         标记，window.onload 里 applyPageLanguage() 一次性替换
+         （必须排在 initUtils() 之前，否则量出来的表格宽度是按英文算的）。
+         **不靠匹配英文原文**——"Front" 既是画布按钮又是存图按钮，
+         "BOM" 既是打印按钮又是布局名，靠文本匹配必然串。
+       · 动态内容（BOM 列标题、版本号前缀、弹窗）直接调 T()。
+       · 特别注意：web/util.js 里 "InteractiveHtmlBom settings" 是**存档文件
+         的类型标记**，不是界面文字，绝不能走 T()——翻译它会让旧的导出文件
+         再也导入不了。测试里专门有一条断言守着这个。
+
+0.5 本次新增的测试
+    · .workbuddy/langtest.js   65 项：拆真 mainWin.dfm 建假控件树，
+      验 en/zh 查表、??key??、AnchorAt 消歧、getLanguage 各种退路、
+      zh 下不留英文标题、en 下不改动标题，以及 dfm 结构/缩进是否合法
+    · .workbuddy/pagetest.js   41 项：验 69 个 data-i18n 键都能解析、
+      zh 无漏译、T() 选包与退路、///LANGJS/// 与 config.language 接线、
+      存档类型标记未被翻译
+    · .workbuddy/labeltest.js  100 项（上一批 94 → 本批 +6）
+    · .workbuddy/coltest.js    84 项
+    · .workbuddy/tag_i18n.py   给 ibom.html 打 data-i18n 标记，幂等，可 --check
+
+0.6 【重要修复】点「运行」弹「灾难性故障」——脚本里的尾逗号
+    现象：从 AD 的"选择条目运行"里执行 mainWin.js 的 startWin，弹
+          「Error / 灾难性故障」，窗口打不开，且**不提示行号**。
+
+    真正原因：**Borland_Lang.js 里有 6 处尾逗号**（`,` 紧跟在 `}` 之前），
+    dist/mainWin.js 里有 1 处。
+
+    Altium 编译每个 .PrjScr 文档用的是 **ES3 时代的老 JScript 引擎**，它不
+    接受对象/数组字面量的尾逗号——这是**硬性语法错误**。而 Altium 把脚本文档
+    的语法错误一律报成「灾难性故障」，不给行号，所以看起来像窗体问题，
+    实际是**解析问题**。
+
+    最坑的一点：**Node 完全接受尾逗号**。所以 node --check 全绿、62 条断言
+    全绿，而 Altium 根本打不开窗口。
+
+    处理：
+      · Borland_Lang.js 删掉 6 处尾逗号（LANG_DFM 末尾、LANG_UI 末尾、
+        LANG_PACKS.zh.dfm 末尾、zh.ui 末尾、zh 对象末尾、LANG_PACKS 末尾）
+      · dist/mainWin.js 删掉 langCaptions() 里 out.push({...}) 末尾那处
+      · bundle 重建，2529003 → **2528997 bytes**（正好少 6 个字符）
+
+    同时新增守卫，避免再犯：
+      · .workbuddy/langtest.js 新增第 15 组 es3Problems()（+9 条断言）：
+        用**括号栈 + 最后有效 token** 判断尾逗号，顺带查 let/const、箭头函数、
+        模板字符串。注意不能用按行的正则——`ReadString("General", "Language",
+        "en")` 末尾也有 `,` 和 `)`，但那个逗号分隔的是函数实参，不是字面量元素，
+        按行判会误报。自测覆盖了同行/跨行/三层嵌套尾逗号、函数实参、字符串内
+        逗号、行注释与块注释内逗号。
+
+    给后续维护的一句话规则：**语法必须停在 ES3。不能有尾逗号、不能 let/const、
+    不能箭头函数、不能模板字符串。** 允许 var、function、===/!==、try/catch、
+    .indexOf()、JSON.parse/stringify、正则字面量。改完任何 .js 都要跑 langtest。
+
+    【附】同一轮还修了 dist/mainWin.dfm 的属性缩进错位（4 个 TabSheet 的
+    Caption 缩进 0 应为 6；写入锚点的脚本把缩进算成「object 缩进 - 2」，
+    正确是 **+ 2**；另丢了 1 行 HelpType）。dfm 确实不合法、也确实该修，
+    但它**不是**这次报错的原因——当时下结论太快了。相关工具：
+    .workbuddy/repair_dfm.py（从干净兄弟版本还原，--check 只校验）、
+    inject_lang.py（写盘前自校验）。当时把 dfm 开头的 UTF-8 BOM 当成"正常现象、
+    量缩进前剥掉就行"——**这个判断是错的**：BOM 本身就是 AD 报
+    "Invalid stream format" 的原因，见「五」第 9 条与「六」的 dfm 校验说明。
+
+
+一、2026-09-22 第一批改动（走线网络名 + No BOM）
+────────────────────────────────────────────────────────
+1) 走线、弧线、过孔、铺铜、填充、Region 全部带上网络归属，并在走线上画出网络名文字
+    · 焊盘原本就有网络名，现在走线也有了；自由过孔本来就是按 pad 渲染的，
+      所以给过孔加网络后，其网络名自动显示。
+    · 走线上的文字做了去重/排稀：只取每段中点，同网络相邻太近的点会被跳过
+      （MIN_SEG = 0.6 mm，MIN_GAP = 2.0 mm），并且选中/高亮某网络时只画该网络的标签。
+    · 铺铜（hatched polygon）会被 parsePoly 合并成 hatchedAll2One，逐段网络会丢，
+      这里显式做了网络继承传递。
+
+2) 网页端新增开关（均在右上角齿轮菜单里）
+    · "Track Nets"        —— 走线网络名文字，默认开（在 Tracks / Zones 那组复选框内）
+    · "Show No BOM parts" —— 显示 NO BOM 元件，默认关（在 Highlight first pin 下方）
+
+3) 去掉高亮线段的白色描边
+    · 原来 drawTracks() 在高亮时会先画一层 width + 0.3 的纯白衬底，现已删除。
+
+4) 修复"高亮时网络名被覆盖"
+    · 根因是画布层级而不是调用顺序：每层是 4 张画布叠加
+      bg(0) → fab(1) → slk(2) → hl(3)，高亮画布最上层，必然压住丝印层的文字。
+    · 抽出共用 drawNetLabels()，在 drawBackground()（丝印层）和
+      drawHighlightsOnLayer()（高亮层）各调一次，两层都画，标签永远在最上面。
+
+5) NO BOM 元件不再进入 BOM
+    · Altium 的 ComponentKind 中 "Standard (No BOM)" 与 "Net Tie (No BOM)"
+      （AD 里显示带空格，枚举名是 eComponentKind_Standard_NoBOM）会被排除；
+      "Net Tie (BOM)" 仍然保留在 BOM 里。
+    · GUI 里新增复选框 "Component no BOM"（默认勾选），对应 config.ini 的
+      [General] BlacklistNoBOM=1。
+
+6) NO BOM 改为"可还原"，而不是直接丢弃
+    · 原来 skipComponent() 一命中就 continue，元件数据根本没写进 pcbdata，
+      网页端无从恢复。现改为双通道同时输出（见下），所以网页上的开关可以实时
+      把这些元件加回来，不必重跑 AD 脚本。
+
+
+一之二、位号 / 参数标签的手动调整（含 2026-09-22 晚新增的旋转）
+────────────────────────────────────────────────────────
+网页上画出来的位号（D6）和参数（PESDU2421P1）文字，可以逐个手工调整：
+
+1) 移动 —— 拖动标签
+    · 鼠标移到标签上光标变 move，按住拖动即可挪位置。
+    · 位移以"板子毫米"为单位存进 labelOffsets，按位号（ref）而不是元件下标做键，
+      因为下标会随板子重新编辑 / 重新导出而变。
+
+2) 旋转 —— 鼠标停在标签上，按【空格】转 90°   ← 本次新增
+    · 每按一次转 90°，再按再转；四次转回原方向。
+    · 位号和参数各自独立：转位号不会动到同一个元件的参数。
+    · 只有"选中"的标签会转。选中的方式有两种：鼠标悬停在标签上，或者
+      在标签上点一下（点完后即使鼠标移开也仍处于选中，方便连续按空格）。
+      鼠标移到空白处，选中即取消。
+    · 存进 labelRotations，格式与 labelOffsets 一样按 ref + 字段分表。
+    · 焦点在搜索框 / 过滤框里时不会触发，正常输入不受影响。
+    · 菜单提示已写明："Drag a ref or value on the drawing to move it,
+      press space to turn it 90°, double-click it to put it back."
+
+3) 复位 —— 双击标签
+    · 双击把该标签的位移【和旋转】一起清掉，回到封装自己定的位置和方向。
+    · 菜单里的 "Reset labels" 按钮则是一次清空全部标签的位移和旋转，字号不动。
+
+【重要】旋转只改 web/ 前端（render.js / ibom.js / util.js / ibom.html），
+dist/InteractiveHtmlBomForAD.js 与 dist/mainWin.dfm 都没有变动 ——
+也就是说这个功能不需要重建 bundle、也不需要重启 AD，重新生成一次 HTML 即可。
+存储键：labelRotations（独立于 labelOffsets，旧存档缺这个键时按"未旋转"处理）。
+
+
+二、数据结构变化
+────────────────────────────────────────────────────────
+BOM 行仍然是位置数组：
+    [0] 数量  [1] Value  [2] 封装  [3] 位号列表  [4] extras
+    [5] 解析值（排序用）  [6] Description
+
+generateBom() / pickBom() 的返回值（注意：没有 "bom" 这个键）：
+    both / F / B        正常 BOM 表（已排除 NO BOM）
+    nobom / nobomF / nobomB
+                        被 NO BOM 规则排除的元件，按同样规则分组
+    nobomComponents     这些元件在 modules 里的索引列表
+    skipped             所有被跳过的索引（保持不变、始终完整）
+
+元件对象新增字段：
+    componentkind       原始 ComponentKind 值
+    nobom               true / false
+
+说明：只有因 NO BOM 被排除的元件能被 "Show No BOM parts" 找回；因空 Comment /
+单焊盘 / 通孔等其他规则被跳过的，开关打开也依然隐藏。
+
+
+三、改动文件清单
+────────────────────────────────────────────────────────
+    【本次汉化只动这三个文件，见文首说明】
+    web/ibom.html   46 处界面文案改中文 + <html lang="zh-CN">
+                    + 两个搜索框 placeholder（原本没有）
+    web/ibom.js      8 处（BOM 列标题 / 列宽拖动提示 / <no net>）
+    web/util.js      3 处 alert 文案
+    英文原文留底：.workbuddy/backup-en-2026-09-22/
+    Borland 层（dist/mainWin.js、mainWin.dfm、Borland_Lang.js、
+    .PrjScr、Initialize.bat、config.ini）本次**未改**，仍为英文。
+
+    ecad/AD10.js        getNetIndex() 接入 6 个解析点（track/arc×2/via/fill/region/poly）；
+                        getComponentKind()、componentKindExcludedFromBom()、
+                        componentKindExcludedFromBom 兼容 "Standard (No BOM)" 带空格写法
+    core/ibom.js        skipComponent() 增加 nobom 判定（用 !== false 兼容旧 config）；
+                        generateBom() 双通道输出；新增 accumulateRow /
+                        accumulateLayerRow / rowsToArray 三个共用函数
+    core/config.js      bomFilter.skipnobom ← ini [General] BlacklistNoBOM
+    dist/mainWin.js     pickBom() 与 core/ibom.js 完全同构的一份改动（无语言层）
+    dist/mainWin.dfm    GroupBox4 内新增 CbBlacklistNoBOM: TCheckBox（无语言锚点）
+    web/render.js       删除白色描边；drawTrackNetLabels()；共用 drawNetLabels()；
+                        isBomSkipped() 替换 drawFootprintLabels / drawFootprints 里的裸判断；
+                        drawFootprintLabels() 的标签颜色改从 --component-label-color 取；
+                        drawText() 的原生位号/参数文字改由 renderNativeLabels 控制；
+                        新增标签拖动/命中/双击复位整套逻辑；
+                        【2026-09-22 晚】新增标签旋转：labelRotationTable() /
+                        labelRotation() / setLabelRotation() / saveLabelRotations() /
+                        clearLabelRotation() / rotateLabel()；selectedLabel 选中状态 +
+                        rotateSelectedLabel()；redrawAllLayers()；绘制时绕自身锚点
+                        ctx.translate(0,row) + ctx.rotate(extra)，命中框 rotated 标志
+                        改为 (m.ang + extra) % 180
+    web/ibom.js         Description 列（表头/表体/搜索/ungrouped 展开）；
+                        trackNetsVisible()、noBomVisible()、bomSkippedCount()；
+                        populateBomBody() 按 F / FB / B 版面合并 nobom 表；
+                        nativeLabelsVisible()；标签字号/偏移相关入口；
+                        【晚】onkeydown 新增 " "/"Spacebar" 分支（焦点在文本框时跳过，
+                        仅在选中标签时吞掉按键）；resetLabelOffsets() 一并清空 labelRotations
+    web/util.js         initUtils() 补齐 [6] 并按 both/F/B/nobom/nobomF/nobomB 循环；
+                        settings 新增 renderTrackNets / showNoBom / renderNativeLabels /
+                        uniformLabelSize / refFontSize / valFontSize / labelOffsets；
+                        注册 trackNetsVisible / noBomVisible / nativeLabelsVisible /
+                        setUniformLabelSize / setLabelFontSize / resetLabelOffsets；
+                        【晚】settings 新增 labelRotations，initDefaults() 与
+                        overwriteSettings() 两处都做读取 / 兜底
+    web/ibom.html       新增 Track Nets、Show No BOM parts、Native refs 三个复选框；
+                        Uniform label size、Ref/Value label size、Reset labels；
+                        【晚】菜单提示改为「…press space to turn it 90°…」
+    web/ibom.css        .bom .Description 宽度 10% → 15%；
+                        :root 新增 --component-label-color: #111111；
+                        .dark.topmostdiv 覆写为 #f2f2f2
+    dist/InteractiveHtmlBomForAD.js
+                        由上述源码重新构建，2519388 bytes（8 个源文件之和）
+                        【注】标签旋转只改 web/ 前端，bundle 与 .dfm 均未变动
+
+
+四、使用前的必做一步
+────────────────────────────────────────────────────────
+rootPath.js 里写的是打包机器上的绝对路径：
+
+    var CURRENT_PATH = "C:\\Users\\administrator1\\Desktop\\work\\InteractiveHtmlBomForAD-0.3.17\\";
+
+把本目录放到别的位置后，**先双击运行一次 Initialize.bat**，它会按当前位置重写
+rootPath.js，并重新拼接生成 dist\InteractiveHtmlBomForAD.js。
+
+然后按 README 的步骤：
+    1. 运行一次 Initialize.bat
+    2. 用 AD 打开 InteractiveHtmlBomForAD.PrjScr
+    3. 打开 PCB 文件，Run Script... → 运行 main()
+        （或用 Document2 的 dist\mainWin.js 走 GUI 窗口）
+    生成结果在 <PCB目录>\PnPout\<板名>.html
+
+注意：必须**重启 Altium Designer**。AD 会缓存已加载的脚本单元，不重启的话
+pcbdata 里不会带 nobom* 字段，"Show No BOM parts" 复选框会显示为灰色不可用。
+
+
+五、以后再改这个项目时的注意事项（重要，务必先读）
+────────────────────────────────────────────────────────
+1. AD 实际执行的是 dist\InteractiveHtmlBomForAD.js 和 dist\mainWin.js
+   （.PrjScr 只注册了这两个脚本单元）。core/ 与 ecad/ 只是源码。
+
+   Initialize.bat 第 8 行把它们拼接成 bundle：
+       copy /b rootPath.js + modules-lite\json2.js + modules-lite\lz-string.js
+             + core\config.js + core\newstroke_font.js
+             + ecad\AD10.js + core\ibom.js + tools\inPcb.js
+             → dist\InteractiveHtmlBomForAD.js
+
+   所以：改了 core/ 或 ecad/ 之后，必须重建 bundle，并且重启 AD。
+   典型症状：新列显示出来了，但每行都是空的。
+   web/ 下的文件是运行时从磁盘读取的，改完立即生效，不需要重建。
+
+2. core/ibom.js 的 generateBom() 与 dist/mainWin.js 的 pickBom() 是两份并行实现，
+   任何一边变了，另一边必须跟着改，否则 CLI 入口和 GUI 入口行为不一致。
+
+3. Altium 的 IPCB_Component **没有 Description 属性**。BOM 的 Description 列对应
+   SourceDescription（GetState_SourceDescription），仅在 PCB 由原理图 Update
+   同步过来时才有值。
+
+4. 读取不存在的 COM 属性会返回 undefined 且**不抛异常**，try/catch 抓不到拼错的属性名。
+   所以取值要多个候选依次探测、只接受非空结果。
+   同理，AD 的 ComponentKind 既可能返回数字枚举也可能返回字符串，两种都要处理。
+
+5. 画布层级：每个面是 bg(0) → fab(1) → slk(2) → hl(3) 四层叠加，高亮层永远最上。
+   任何需要压在高亮之上的东西，必须画到 canvasdict.highlight 上。
+
+6. populateBomTable() 会拆掉并重建 DOM，initDone === false 时不能被 noBomVisible()
+   之类调用，必须先用 if (initDone) 保护。
+
+7. 新增列时，表头（populateBomHeader）和表体（populateBomBody）必须同步改，
+   且不能插在 numCol 或复选框列之前——复选框代码用 childNodes[n+1] 硬编码定位，
+   插前面会错位。
+
+8. 本机环境陷阱：
+   · Bash 里没有 ls / dirname / mkdir / tail / head（PortableGit 缺 coreutils），
+     列目录请用 Glob 或 node fs。
+   · PowerShell 工具禁止 Add-Type、禁止从 Bash 调 powershell.exe。
+   · 不能用 copy /b 手工打包时，可用 node skills 下的 rebuild-bundle.js（带 --verify）。
+   · dist bundle 超过 256KB，Read 工具读不了，用 node fs / Grep 检查。
+
+9. 汉化约定（**本版只用「直改模板」法**，见文首说明）：
+   当前交付版本里，**导出的 HTML 页面是中文**，做法是把 web/ibom.html、
+   web/ibom.js、web/util.js 里的英文文案就地换成中文——没有语言层，
+   所以改文案时**不要**去加 lang.js / data-i18n / T() 之类的东西。
+   · 想改某句中文，直接在三个文件里搜原文改即可；改完重跑
+     .workbuddy/zh_leftover.js（残留扫描）与三套测试。
+   · **换回英文**：从 .workbuddy/backup-en-2026-09-22/ 拷回三个文件即可。
+   · Borland 窗口那层（AD 弹出的设置窗体）**本版不做**，仍是英文。
+   曾经做过一版「Borland_Lang.js + web/lang.js + data-i18n」的双语架构，
+   因 startWin 弹「灾难性故障」而整体回滚，成品留底在 .workbuddy/backup-zh/。
+   若以后还想上语言层，可参考下面这些当年踩过的坑：
+   · 语言包分两层，互不依赖：Borland 窗口看 Borland_Lang.js，
+     生成的网页看 web/lang.js。改哪层就动哪个文件。
+   · 键永不翻译，只翻译值。查不到键要返回可见标记（??key?? / 键名本身），
+     不要返回空串——空白会把漏译藏起来。
+   · 加新控件后：Borland 侧控件名唯一就不用加锚点；若标题与别的控件重复、
+     或控件名本身没意义（StaticText1 这种），必须在 mainWin.dfm 里补
+     Name = "xxx" 或 HelpKeyword = "lang:xxx"，并在两个语言包里都加键。
+     网页侧给新标签加 data-i18n="命名空间.名字"，在两个包都加键。
+     注意：网页侧要按**元素形态/锚点**打标，别靠匹配英文原文——
+     Front、BOM 这类词在多处合法重复，按原文匹配必然出错。
+   · **绝对不能**把存档文件里的 "InteractiveHtmlBom settings" 做成可翻译的。
+     它是导出/导入的格式标记，翻了旧文件就导不进来。
+   · Borland 脚本窗体**不能** mainWin.a.b 这样取嵌套控件（报 "not an object"），
+     只能用 .ComponentCount / .Components[i] 走，再用 owner[child.Name] 读属性。
+     遍历时 owner 必须是**父控件**，传错一层会导致所有深层控件都取不到。
+   · ★★ **语法必须停在 ES3——这是最难查的一条。** ★★
+     Altium 用的是 ES3 时代的老 JScript 引擎，而且把脚本文档的**语法错误**
+     一律报成「灾难性故障」且**不给行号**，看起来完全像窗体问题。
+       禁止：尾逗号（`,` 紧跟 } ] ) —— 哪怕写成 `var a = {x:1,};` 也是语法错误；
+             let / const；箭头函数 =>；模板字符串（反引号）；
+             解构、展开运算符、for...of
+       允许：var、function、=== / !==、try/catch、.indexOf()、
+             JSON.parse / JSON.stringify、正则字面量
+     **node --check 检查不出来**（Node 接受这些），所以语法检查全绿也可能
+     在 AD 里打不开。给 AD 写任何 .js 都必须人工过一遍这条。
+     （当年靠在 langtest.js 里加一组 es3Problems() 守卫才拦住；那份测试已随
+      汉化移到 .workbuddy/backup-zh/.workbuddy/langtest.js，需要时可取回。）
+   · **改 dist/mainWin.dfm 之前先看这一条。** DFM 的属性行缩进**永远**是
+     「所属 object 的缩进 + 2」，不要写成「少一级」：
+         TabSheet 缩进 4  → 属性缩进 6
+         GroupBox 里的 StaticText 缩进 6 → 属性缩进 8
+         再深一级的 CheckBox 缩进 8     → 属性缩进 10
+     缩进写错的 dfm 也不合法，要跑 `python .workbuddy/repair_dfm.py --check`。
+   · 用 trim 之后再匹配的解析器**看不见缩进**。结构校验必须单独按原始空白走一遍。
+   · 如果 dfm 被改坏了：**不要手工逐行修**。0.3.18 / 0.3.19 / 0.3.20 里的
+     dist/mainWin.dfm 是逐字节相同的干净副本，用 `python .workbuddy/repair_dfm.py`
+     从它还原，再把本分支自己的改动重放回去，比手改安全得多。
+
+10. 位号 / 参数标签（web/ 前端，与 AD 侧无关）：
+   · 标签的位移和旋转都以**位号（ref）**为键，不能用元件下标 ——
+     下标会随板子重新编辑 / 重新导出而变，旧存档就会错位。
+   · 位移存 labelOffsets（板子毫米），旋转存 labelRotations（角度，90 的倍数）。
+     两个表都是「ref → { ref/val → 值 }」，故意分开存，这样旧存档缺
+     labelRotations 时按"未旋转"处理，不会连带把位移读坏。
+   · 绘制时旋转要**绕标签自身锚点**转：先 `ctx.translate(0, row)` 把基线点移到
+     局部原点，再 `ctx.rotate(extra)`。如果只加一个 rotate 而不先 translate，
+     标签会绕封装中心公转，看起来像被甩出去。
+   · 命中框要跟着转：labelHitScan() 靠 `rotated` 标志把宽高对调，所以那个标志
+     必须是 `(m.ang + extra) % 180 !== 0` —— 忘了加 `extra` 就会出现
+     "转完之后点不中 / 点到旁边的标签"。
+   · 空格键只在**已选中标签**时才 preventDefault，否则会吃掉正常翻页和
+     按钮的空格激活。焦点在文本框里时直接 return（与 "n" 键同一套判断）。
+   · 改这些标签代码后跑 `.workbuddy/labeltest.js`（130 条）与
+     `.workbuddy/pagetest.js`（33 条），两者都是纯 Node + vm，不依赖浏览器。
+
+
+六、校验情况
+────────────────────────────────────────────────────────
+· 改动文件 node --check 语法全部通过（含 dist/mainWin.js、core/config.js、
+  core/ibom.js、web/ibom.js、web/util.js、web/render.js）
+· ES3 语法门禁通过（`.workbuddy/wsh_parse_check.js`）
+    用 WSH 的 JScript 引擎 `new Function(src)` **编译**（不执行）全部 8 个
+    bundle 源，含 2.4 MB 的 newstroke_font.js。WSH 与 AD 同源，会拒绝尾逗号 /
+    let / const / 箭头函数 / 模板字符串——**node --check 对这些一律放行**，
+    所以这条不可省。语法错误会抛异常，缺 Altium 全局对象则不会（因为不执行）。
+· generateBom() 端到端 21 项断言通过
+    both = R1,R2,U1；nobom = TP1,TP2,TP3；nobomF = TP1,TP2；nobomB = TP3；
+    skipped = 1,3,5 完整保留；跨层 itemkey 相同者 qty 合并为 3；
+    BlacklistNoBOM=0 时全部放开；旧 config 缺该键时仍按排除处理
+· 前端逻辑 31 项断言通过
+    开关开/关切换；非 NO BOM 的 skip 索引（如 8）保持隐藏；
+    旧 payload（无 nobomComponents）优雅降级、复选框置灰；
+    底部跳过计数 4 → 1；F / FB / B 三种版面合并均正确；netlist 不受影响
+· 标签 130 项断言通过（.workbuddy/labeltest.js）—— 含新增的 25 项旋转断言
+    自动/统一两种字号、画布上实际画出的颜色与字号、绘制与命中判定一致、
+    boardPoint 逆变换（含背面镜像与旋转）、拖动/双击复位/持久化、
+    双指中断、暗黑模式取色（缺变量与空值都退回 #111111）、
+    Native refs 开关与 References/Values 的分离、菜单 handler 全部存在、
+    util.js 查的每个 id 都能在页面里找到；
+    【旋转】缺表时读作 0 且不崩、点选后空格转 90°、ref/val 各自独立、
+    四次按键回绕到 0、180° 不被误判为侧向、旋转时锚点不漂移、
+    命中框宽高互换且面积不变、双击一并清掉角度、脏数据（字符串角度）读作 0
+· BOM 列 + Excel 导出 109 项断言通过（.workbuddy/coltest.js）
+    默认列序、每列可拖动、复选框列查找在重排后仍正确、任意列改宽、
+    拖拽排序、拖完仍可点击排序、netlist / ungrouped、脏数据自愈、重置、
+    exportBom 的 xlsx 结构（六部件 / 全 stored / CRC）、列过滤、
+    数量写成数字、表头加粗与冻结、XML 转义、sheet 名净化、缩放把手、
+    「另存为」五条分支（无接口→下载 / 有接口→只弹框不下载 / 取消→不下载 /
+    promise 被拒→退回下载 / 同步抛错→退回下载）
+· 页面生成冒烟 33 项通过（.workbuddy/pagetest.js）
+    模拟 generateFile() 按行拼页面：每个 ///NAME/// 槽位都能对上文件且
+    填完后无残留、无语言钩子（data-i18n / PAGE_STRINGS / applyPageLanguage /
+    LANG_PACKS / readLanguage）、旋转功能确实进了拼好的页面、
+    菜单提示含「按空格键旋转」、BOM 按钮指向 exportBom 且 printBom 已消失、
+    导出走 saveFileAs 且保留了下载降级、每个脚本都能解析（CSS 校验花括号配平）；
+    另有 7 条守 **AD 侧接线**：main() 调用 exportDefaultBom、
+    产出 <板名>-BOM.xlsx、走 SaveAs(path, 51)、有 CSV 兜底、
+    除数量列外强制文本格式、用 try/catch 保证不连累 HTML、
+    以及 core/ibom.js 保持纯 ASCII（中文一律 \uXXXX 转义）
+· 工作簿被真实 Excel 库读回校验
+    · 网页侧：`node .workbuddy/xlsxcheck.js` 生成 303×5 样例 → openpyxl
+      读回 **17 项全过**（CRC、表头加粗、冻结、数字类型、中文与元字符往返）
+    · AD 侧：`.workbuddy/gen_bom_probe.js` 把导出函数**原样抠出** core/ibom.js，
+      在 WSH 里真实调用（6 行 / 300 行 / 空 BOM），再由
+      `.workbuddy/verify_bom_export.py` 用 openpyxl + csv 读回 **29 项全过**
+      实测耗时：6 行 1281 ms、300 行 3541 ms（含 WPS 启动开销），
+      空 BOM 正确地不产生文件
+· dfm 结构独立校验通过（.workbuddy/repair_dfm.py --check）
+    开头必须是 object（无 UTF-8 BOM，否则 AD 报 "Invalid stream format"）、
+    每条属性都恰好比所属 object 深 2 格、每个 end 都正确闭合；
+    与 0.3.20 干净基线的差异恰好只剩 CbBlacklistNoBOM 这一个新增控件块
+· bundle 重新构建后完整性检查 OK（**2525770 bytes**，8 个源文件之和）
+    较上一版 2519388 增加 6382 bytes，即 AD 侧 BOM 导出那段代码
+
+── 以下三项属于回滚前的汉化版本，测试脚本已随代码一并移出工程，仅作历史记录 ──
+· 语言包 74 项断言（.workbuddy/backup-zh/.workbuddy/langtest.js）
+· 页面语言包 41 项断言（.workbuddy/backup-zh/.workbuddy/pagetest.js）
+· 页面端到端汉化抽查：200695 bytes 页面、51 标签 + 14 提示 + 4 占位符全译中文
+
+合计（当前工程内可跑的）：labeltest 130 + coltest 109 + pagetest 33
+  + AD 侧 BOM 导出 29 + 网页工作簿读回 17 + check_slots 3 + zh_leftover 1
+  = 322 项，全部通过。
+
+
+★ 2026-09-24 21:50 · 面板勾选不生效于 HTML（JScript 把 false 序列化成 0）
+
+· 现象：导出面板里取消「走线」「过孔」，HTML 设置菜单里却默认勾选。
+· 排查链路（全通，断点在最后一环）：
+    面板勾选 → setValueToInifile 写 config.ini（ShowTracks=0 实锤写入了）
+    → GenerateBomClick 直接从控件构建 config → 内嵌 HTML
+    （实测 ME02 V1.html：show_tracks:0、show_vias:0、page_id 新鲜——
+    AD 侧完全正确）
+    → 浏览器 initDefaults：freshExport 机制也正常工作
+    → 断点：util.js 的防御写法 `config.show_tracks !== false`。
+· 根因：AD 的 JScript 引擎 JSON.stringify 时把 COM 布尔 false 输出成
+  数字 0（true 才输出 true——同页 dark_mode:true 佐证）。于是
+  `0 !== false` 为 true，`!== false` 的「键缺失→默认开」防御把 0
+  误判成「老页面没有这个键」，勾选框被强制打上。受害的恰是所有
+  「默认关」的项（走线/过孔/No BOM/高亮1脚/丝印层）；
+  「默认开」的项输出 true 不受影响——与用户现象完全吻合。
+· 修复（web/util.js，initDefaults 内）：
+    新增 dialogPresetOn(key)：undefined → true（老页面默认可见），
+    其余 !!value（0/false → 关，true/1 → 开）；
+    7 处 `!== false` 全部替换；noBomVisible 的 `=== true` 改 !!config.show_nobom。
+  纯 web/ 改动：**不用重建 bundle、不用重启 AD**——generateFile 每次导出
+  都从磁盘读 web/util.js，在 AD 里再点一次导出即生效。
+  localStorage 无需手动清理：新导出的 page_id 触发 freshExport，预设值
+  自动覆盖旧勾选状态。
+· 验证：scratch/preset_bool_test.js 19/19 全过——
+    用真实导出页的内嵌 config 断言：tracks/vias → OFF、dark_mode → ON；
+    语义矩阵 undefined/false/0/1/true；
+    freshExport 分支 checkbox 与 storage 写入值；
+    web/ 三文件无 `!== false` 残留模式。util.js 过 node --check。
+· 附带教训（通用坑）：AD JScript 的 JSON.stringify 不可靠——COM 布尔
+  false 变 0。网页端消费 config 时不要用 `!== false`/`=== true` 做键
+  存在性防御，统一走 dialogPresetOn/!!value。
+
+
+★ 2026-09-24 22:05 · 原理图元件线条缺失（SchDoc RECORD=13 整类未解析）
+
+· 现象：导出页原理图视图里，三极管/MOS 等元件符号缺横线（如基极横线），
+  符号看起来「缺胳膊少腿」。
+· 排查：tools/schdoc2html.js 的 parseSchDoc 逐类型统计——
+  初次探测用精确键名 pr['LOCATIONCOUNT'] 导致 RECORD=6/27 全误报 dropped，
+  改用大小写不敏感 get() 复查后确认 6/27/15 全部 0 dropped；
+  真正缺口是 RECORD=13（两点线段）整类未读——元件符号 graphics 里的
+  直线笔画全在这里，一图 116 条全丢。
+· 键名坑：RECORD=13 用混合大小写 Location.X/Location.Y/Corner.X/Corner.Y
+  （与导线的小写全大写风格不同），get() 本就有大小写不敏感回退，直接用。
+· 修复（tools/schdoc2html.js）：wire 分支后新增 t===13 分支，
+  push ["l", x1, y1, x2, y2]；inject_schem.js require 同一文件，单份代码。
+· 验证：Q2 prim kinds {"p":3,"l":3,"pg":1,"t":2}（基极横线回来了，
+  (550,570)-(540,563)）；MOS1 13 条线；全图两点线 116→188 条；
+  未读类型只剩 39。web/schem.js 对 l/pl 全渲染，无需改动。
+· 生效方式：纯 node 侧改动，IncludeSchematic=1 时导出流程自动跑
+  inject_schem.js——**在 AD 里重新导出一次即见效**，不用重启 AD。
+
+
+★ 2026-09-24 22:30 · 点铺铜不高亮（走线关闭时高亮通道被连坐）
+
+· 现象：点击铺铜区域没有高亮反应，点铺铜之外（焊盘上）才有高亮。
+· 排查（playwright 驱动 Edge 实测导出页，scratch/pw_hit_test.js）：
+    铺铜中心命中正常（netHitScan 返回 net 6 = BAT+）、
+    isPointInPath true、焊盘命中正常——**命中识别没有问题**；
+    settings.renderTracks=false（用户勾选已生效，侧面验证上一条修复）。
+· 根因：render.js 里 netHitScan 的走线段和 drawNets 高亮时的
+  drawTracks 都被 settings.renderTracks 门控——走线勾选关闭后，
+  点击铺铜虽然命中并高亮，但该网络只有 zones 重染色（#FF000090
+  半透明红，视觉很弱）、走线不亮，被感知为「没反应」；点焊盘则是
+  实心红块，反馈明显——与用户感受完全吻合。
+· 修复（web/render.js，备份 backup-20260924_2230_铺铜高亮修复前）：
+    drawNets：tracks/zones 门控 `settings.renderXxx` → `|| highlight`
+      （高亮模式下 drawTracks/drawZones 内部本来就只画
+      highlightedNet 匹配的形状，放行不引入杂散绘制）；
+    drawInnerVias：`!settings.renderPads` → `&& !highlight` 放行
+      （内部同样有 per-via 网络过滤）；
+    pads 分支**有意不动**：其孔洞重画逻辑会画同封装所有 pad 的孔，
+      基础 pad 关闭时强行放行会出现悬空孔伪影。
+  语义：基础可见开关行为不变；点选网络时该网络的走线/铺铜/内层过孔
+    强制点亮——「我点了一个网络，这个网的铜都要亮」。
+· 验证（scratch/pw_highlight_verify.js，原版页 vs 拼接修复版页）：
+    两页 netClicked(6) 后统计 F_hl 高亮画布红色像素——
+    原版 3320，修复版 3534，差值 214 = 20 条 BAT+ 走线点亮；
+    截图确认修复版出现贯通红色走线把铺铜/焊盘连成整网，
+    原版红色区域互相孤立。render.js 过 node --check。
+  拼接方法：导出 HTML 内嵌源码为原文，用备份原版内容定位
+    （恰好 1 处）替换为修复版内容，等价于重新导出的产物
+    （scratch/splice_patched_html.js → ME02 V1 patched.html）。
+· 生效方式：纯 web/ 改动，AD 里重新导出一次即生效。
+
+
+★ 2026-09-24 22:38 · 界面缩放下点击漂移（offsetX 与 clientWidth 口径分裂）
+
+· 现象：界面缩放非 100% 时，点 A 处高亮了隔壁网络（点 BAT+ 亮了 M−）；
+  缩放关掉（100%）就正常。
+· 排查（playwright 真鼠标点击实测 + 单位探针）：
+    body zoom 1.5 时 canvas 的 clientWidth=638（本地布局 px）而
+    getBoundingClientRect().width=957（视觉 px）——Chromium 在 CSS zoom
+    下两个 API 口径分裂；canvas.width = clientWidth × dpr × k = 957。
+    旧换算 boardPoint 用 `offsetX × (dpr × uiScaleFactor)` 当背衬像素，
+    而 offsetX 实际是视觉口径 → 背衬像素被高估 k 倍，
+    误差 = (k−1)×offsetX，随点击位置离锚点的距离线性放大
+    ——正是「点这里、亮隔壁」的方向性漂移。k=1 时严格无误差。
+· 修复（web/render.js，备份 backup-20260924_2335_缩放点击漂移修复前）：
+    新增 cursorCanvasPx(e, layerdict)——统一用
+    (clientX − rect.left) × (canvas.width / rect.width) 得到光标处的
+    背衬像素：两端都是视觉口径 + 实测比例，对任何 zoom 语义免疫；
+    boardPoint / 拖拽平移（Δpan = Δ背衬px / zoom）/ 双指缩放锚点
+    （pointerStates.lastBx/lastBy）/ 滚轮缩放锚点全部改走它，
+    彻底不再读 offsetX 做位置换算（offsetX 仅剩移动阈值与
+    双指距离比例这两个与单位无关的用途）。
+· 验证（scratch/pw_zoom_click_test.js，真鼠标点击，原版页 vs 拼接修复页）：
+    三种状态 × 三个靶点（BAT+ 焊盘 / 其他网络焊盘 / BAT+ 铺铜中心）：
+    · 修复前：k=1 全对；k=1.5 三个靶全部脱靶（漂出板外 got=null）；
+      k=1.5+滚轮同样脱靶（旧滚轮锚点还把 panx 超加 1.5 倍）。
+    · 修复后：k=1、k=1.5、k=1.5+滚轮 全部命中预期网络
+      （唯一未判的是滚轮后移出画布的靶点，属测试脚手架出界跳过）。
+· 附带修正：滚轮/拖拽的平移量以前也用同一错误比例，缩放状态下
+  拖拽「板跟手不住」的潜在偏差一并消除。
+· 生效方式：纯 web/ 改动，AD 里重新导出一次即生效。
+· 通用教训：CSS zoom（body.style.zoom）下 Chromium 的 offsetX /
+  clientWidth 是本地布局 px，clientX / getBoundingClientRect() 是
+  视觉 px——两者绝不能混乘。指针→画布换算一律用
+  「视觉坐标差 × (canvas.width / rect.width)」实测比例。
+
+
+★ 2026-09-24 22:47 · 测试点幽灵大圆（椭圆缺 SecondaryRadius 的 AD 语义）
+
+· 现象：导出页原理图里，测试点（M+1/M-1 等）符号画着 AD 原图没有的
+  大圆，视觉上「图标和 AD 不一样」。
+· 取证（三步铁证）：
+    1) 解剖 SchDoc：测试点符号 = pin + r2 粗环（RECORD=12）+
+       三个 RECORD=8 椭圆——前两个无 Radius（退化），第三个
+       Radius=19 但**没有 SecondaryRadius**；
+    2) 全表统计：RECORD=8 共 18 个 = 6 个「仅 Radius=19」（恰好
+       6 个测试点位置）+ 12 个无 Radius，没有任何正经椭圆；
+    3) AD 真值 = 项目的原理图 PDF（AD 自己打印）：pdfplumber 提取
+       圆尺寸直方图只有 1.5/2/3/3.5/4.5/7pt——按 0.72pt/u 换算，
+       r19 应为 ~27pt，**PDF 里根本不存在**；4.5pt×2 恰好 = 两个
+       测试点的 r2 粗环，7pt×22 = 通孔 r5 圈。
+· 根因：ellipseRecord 的兜底 `ry = SECONDARYRADIUS ?? rx`——AD 对
+  缺失 SecondaryRadius 的语义是 0（扁椭圆 = 不可见），兜底把它
+  当成了正圆，凭空发明 6 个 AD 不画的幽灵圆。
+· 修复（tools/schdoc2html.js，备份 backup-20260924_2350_测试点幽灵圆修复前）：
+  SECONDARYRADIUS 缺失或 ≤0 时跳过（与 AD 打印一致）。
+· 验证：node --check 过；M+1/M-1 prim 只剩 pin + r2 环 + 标签，
+  M+/M- 的 r5 通孔圈保留；全表 e 图元 27→21（恰好 -6）；
+  schdoc2html CLI 端到端转换正常；独立验证页 playwright 断言
+  .sch-ellipse 共 21 个、max rx=5、无 >10 者，截图无幽灵圆。
+· 生效方式：纯 node 侧，AD 里重新导出一次即见效
+  （IncludeSchematic=1 时导出自动跑 inject_schem.js）。
+· 通用教训：兜底默认值不能凭直觉发明——AD 的缺省语义要用
+  AD 自己的输出（PDF 打印）对照实锤；SchDoc 属性键大小写不定，
+  probe 一律用大小写不敏感访问（与 RECORD=13 教训同源）。
+
+
+★ 2026-09-24 22:54 · 符号线宽丢失（测试点环一大一小的另一半）
+
+· 现象（用户追问）：AD 里测试点是黑点、通孔是白圈，大小相仿；
+  导出页却一大一小——幽灵圆修掉后，测试点只剩 r2 细环，
+  比通孔的 r5 细环小一大截。
+· 根因：解析和渲染都丢掉了 LINEWIDTH——测试点环是 r2 + 线宽 3
+  （AD 里外径 7、内孔 0.5，视觉上就是实心黑点），丢线宽后变成
+  r2 细圈（外径 4）；而样式表给所有图元的默认描边是 2，
+  通孔环（r5/lw1）被画成外径 10——比例 4:10，AD 实际是 7:10。
+· 修复（tools/schdoc2html.js + web/schem.js，
+  备份 backup-20260924_2255_符号线宽修复前）：
+    解析端：arcRecord / ellipseRecord 在元组末尾携带 LINEWIDTH；
+    渲染端：新增 schemStrokeW(w)——仅当 w>2（比样式表默认粗）时
+      输出内联 style 覆盖（内联样式优先级高于类）。
+    有意不让 lw1 的图元变细：默认 2 是全表可读性取值，
+    只把「比默认更粗」的记录忠实还原。
+· 验证：node --check 双文件过；M+1 prim 变 ["e",740,695,2,2,3]、
+  M+ 通孔 ["e",740,655,5,5,1]；验证页断言：21 椭圆中 6 个
+  stroke-width:3 且 rx 全为 2（= 6 个测试点）、12 个弧线全部无覆盖
+  （lw≤2）、max rx 仍 5；测试点外径 7 恰与 PDF 真值
+  （4.5pt ÷ 0.72pt/u ≈ 6.5）吻合。
+· 生效方式：AD 里重新导出一次（tools/ 与 web/ 都随导出生效）。
+· 顺带说明：黑点/白圈本来就是两个不同元件（测试点 vs 通孔），
+  颜色差异是正常的；本次修的是大小比例。
+
+
+★ 2026-09-24 23:14 · 设置菜单改点击开/点击关 + UI 缩放控件防跑飞
+
+· 现象（用户反馈）：①设置菜单一碰就开——鼠标划过顶部就弹出整块
+  设置面板；②UI 缩放滑条拖不动——滑一点页面就放大，滑条本体跟着
+  被放大，鼠标位置和滑块脱钩，「自动滑动得太多」。
+· 根因：
+  ① 菜单是纯 CSS hover 驱动（.menu:hover .menu-content{display:block}），
+     JS 里从来没有任何切换 .open 的代码（.open 通道是死规则）；
+  ② 滑条 oninput 实时调 setUiScale → body.style.zoom 立即变化 →
+     滑条控件自身也处于被缩放的 body 里，几何随拖动实时变化，
+     鼠标位移换算出的值随之飞掉。另旧滑条单位是 0.1（5~20），
+     setUiScale 里 parseInt 截断小数，0.5 步进的后半档本来就丢
+     （12.5 档实际落到 120%）。
+· 修复（web/ 四文件，备份 backup-20260924_2313_设置交互改造前）：
+    util.js：新增 initMenus()——菜单按钮点击切换父容器 .open，
+      同一时刻只开一个，点外部或 Escape 全关，菜单内部点击不关；
+      setUiScale 去掉 ×10（控件改说百分数 50~200）；
+      applyUiScale 同步滑条与数字框（Math.round(k*100)），
+      auto 模式下两个控件一起 disabled。
+    ibom.html：界面缩放行改为「数字输入框 + 滑条」双控件，
+      都是 min50/max200/step5（5% 步进）、都走 onchange（释放生效）。
+    ibom.js：window.onload 里调 initMenus()。
+    ibom.css：删除 .menu:hover 打开通道，.open 成为唯一显示通道；
+      hover 仅保留按钮着色反馈。
+· 验证：node --check 双 js 过；拼接法把四块改动塞进导出页
+  （四块各恰好 1 处、旧 uiScaleValue/hover 规则残留断言为 0）；
+  playwright 真鼠标行为验证 12/12：hover 不再打开、点击开、
+  内部点击不关、再点关、点外部关、ESC 关、统计/保存菜单同样
+  生效且互斥；拖动滑条全程 body zoom 保持不变（不跑飞）、
+  释放才生效且落在 5% 步进（135%）；数字框输 150 → zoom 1.5、
+  滑条同步 150；auto 勾选后双控件 disabled。
+· 生效方式：纯 web/ 改动，AD 里重新导出一次 HTML 即生效，
+  无需重建 bundle、无需重启 AD。
+· 教训：①改变页面自身缩放的交互控件，生效时机必须放在手势
+  结束（change 而非 input）——实时生效等于把控件脚下的坐标系
+  抽掉；②测试断言里对 DOM 索引的假设要先核实（stats=[1]/io=[2]
+  写反造成一次假 FAIL，诊断脚本实锤后修正断言，功能本身没问题）。
+
+
+★ 2026-09-24 23:27 · 标题栏误画修复（RECORD=39 模板记录）
+
+· 现象（用户截图）：导出页原理图多出 AD 里没有的表格框线
+  （Title/Size:/Number:/Date:/File: 那张标题栏），还有线伸到
+  LED 网络线上——AD 原理图里这张表是模板图框，不该出现在
+  电路内容里。
+· 根因（SchDoc 探针实锤）：图纸头部有一条 RECORD=39 模板记录
+  （IsNotAccesible=T，FileName=A4.SchDot），它的孩子
+  （OwnerIndex = 头索引−1，与元件孩子同约定）= 标题栏表格线
+  （9 条 RECORD=6 折线，x 670~1130 / y 20~80）+ 占位文本
+  （17 条 RECORD=4：「=title」「=organization」「Title」「Size:」…）
+  + logo 位图（RECORD=30）。parseSchDoc 的 pass 2 对「有 owner 但
+  owner 不是元件」的孩子一律落进 sheet 级 gfx/texts——模板内容
+  全被当成普通图形画了出来；那条「连到 LED 网络线」的线其实是
+  模板框线的端点恰好落在导线附近造成的视觉连接。
+· 修复（tools/schdoc2html.js，备份 backup-20260924_2330_标题栏与缩放移除前）：
+  pass 1 识别 t===39，记 templateOwners[i-1]；pass 2 开头对
+  OWNERINDEX 命中 templateOwners 的记录一律跳过；RECORD=39 加入
+  已读列表（diag 不再报 unread）。
+· 验证：node --check 过；verify_titleblock_fix.js 6 项全过——
+  模板几何/占位文本全清（唯一存留的 l@760,80 是 RECORD=27 真实
+  导线 recs[2490]，760,80→760,110，必须保留）、75 元件完整、
+  位号齐全、LED3/R13 在、diag 无 unread；CLI 端到端转换正常
+  （comps=75 pins=193 wires=108），产物 HTML 里 6 个占位文本
+  grep 全为 0。
+· 生效方式：tools/ 改动随导出解析生效——**AD 里重新导出一次**
+  标题栏即消失。注意：拼接验证页内嵌的原理图数据是导出时解析的
+  旧结果，不受本次 JS 拼接影响（数据层修复必须重新导出才可见）。
+· 通用教训：AD 的「页面上看得见但不属于电路」的内容多为模板/
+  装饰记录（RECORD=39 模板头 + IsNotAccesible 标记），解析时按
+  记录类型过滤，不能只靠几何位置猜（真实导线可能与模板区域
+  重叠——760,80 那条就是）。
+
+
+★ 2026-09-24 23:27 · 按用户要求移除「界面缩放」功能
+
+· 用户原话：「把HTML页面的页面缩放功能取消了」。上一节
+  （23:14）刚改造的数字框/滑条/自适应 checkbox 随本节整体移除，
+  页面固定 100% 渲染。
+· 移除明细（web/，备份 backup-20260924_2330_标题栏与缩放移除前）：
+    util.js：删 applyUiScale/setUiScale/setUiScaleAuto/autoUiScale
+      四函数与 settings.uiScale(.uiScaleAuto) 默认值、initDefaults
+      与 overwriteSettings 里的恢复/导入块；uiScaleFactor 常量
+      保留（恒 1）——render.js 的 canvasPixelRatio 乘它、ibom.js
+      的 BOM 列宽/拖放指示器除它，算式不动、数值不变。
+    ibom.html：设置菜单的「界面缩放」「自适应屏幕」两行删除。
+    ibom.js：window.onresize 还原为单纯 resizeAll()；相关注释
+      同步（不再提 applyUiScale）。
+    render.js：仅注释同步，行为零改动。
+· 验证：node --check 四 js 过；web/ 全局 grep 无任何 uiScale
+  函数/控件/存储键残留；拼接页（基线 = 用户 23:24 重导出的
+  ME02 V1.html）playwright 6/6——无页错误、三个控件不存在、
+  1600 与 2400 宽窗口下 body zoom 恒为 100%、uiScaleFactor=1、
+  菜单点击开合/外部关闭回归正常。
+· 生效方式：AD 里重新导出一次 HTML 即生效。
+· 备注：菜单「点击开合」交互（initMenus）保留不动，那是上一轮
+  独立需求；localStorage 里旧的 uiScale/uiScaleAuto 键成为死键，
+  无代码再读取，不必清理。
+
+
+★ 2026-09-24 23:43 · 背面网络名修复 + 网络名字号调节
+
+· 现象（用户截图）：背面过孔没有网络名（正面 GND/NetR27_2 都在）；
+  用户顺手要求核查中间层；再要求给网络名加和位号/参数一样的
+  字号调节（现在太小）。
+· 根因（pcbdata 数据实锤）：自由过孔/自由焊盘全部挂在 AD10.js
+  造的虚拟元件 footprintNoBom 下，其 layer 恒为 "F"（AD10.js:1141）；
+  drawPadNetLabels 按 `fp.layer !== layer` 过滤 → B 层调用时 138 个
+  全部跳过（含 2 个 B 面单面 pad 和 136 个通孔）；F 面元件的
+  16 个通孔 pad 在背面同样被漏掉。pad 自带的 pad.layers
+  （parsePad/parseVia 产出：单面 ["F"]/["B"]、通孔 ["F","B"]）
+  才是正确的层归属。
+· 中间层核查：ME02 是 2 层板（pcbdata 无 inners 键，内层画布
+  不会创建）；内层网络名走 drawInnerViaNetLabels——直接遍历
+  pcbdata.vias 并用 via.through/start/stop 判层，不依赖 fp.layer，
+  128 个 via 全带 through:true——该 bug 在内层不存在，4 层板
+  也不会有。
+· 修复（web/，备份 backup-20260924_2343_网络名修复与字号前）：
+  drawPadNetLabels 层判定改为 `pad.layers.indexOf(layer) < 0`
+  跳过（fp.layer 过滤删除）。
+· 网络名字号（同备份）：
+    render.js：新增 netLabelFontSize()（settings.netFontSize>0
+      取之，否则回退旧 0.1mm）；pad/内层过孔/走线三个网络名
+      标签函数的固定 fs=0.1 全部改走它。
+    ibom.js：setLabelFontSize 加 'net' 分支（不经 uniform 强开，
+      网络名与统一标签字号开关无关）；applyLabelFontSizeInputs
+      同步滑条与 mm 显示。
+    util.js：settings 默认 netFontSize:0；initDefaults 恢复
+      storage（缺省 0.3mm——比旧 0.1 明显大，用户嫌小）；
+      overwriteSettings 导入兜底 0.3。
+    ibom.html：设置菜单加「网络名字号」滑条（0.1~2.0mm，
+      步进 0.05，默认 0.30）。
+· 验证：node --check 三 js 过；拼接页（before = 原导出页）
+  playwright 7/7——背面画布白像素 214→954（背面 pad/过孔网络名
+  出现，×4.5）、正面 962→2757（默认字号 0.3 比 0.1 大 3 倍）、
+  滑条拉到 2.00mm 后正面 21455（×22，实时生效）、显示 2.00、
+  重载持久化、菜单点击开合回归、无页错误。
+· 生效方式：纯 web/ 改动，AD 里重新导出一次 HTML 即生效。
+· 教训：层归属要信数据自身的 layers 字段，不要信容器的归属——
+  虚拟容器（footprintNoBom）的 layer 是占位值；「通孔元件在
+  另一面也有铜」这类物理事实必须由 pad.layers 表达。
+
+★ 2026-09-25 00:02 · 网络名默认字号随屏幕自适应 + 重置按钮移位
+────────────────────────────────────────────────────────
+· 背景（用户实测反馈）：网络名字号手动试出来的合适值——4K 屏
+  0.2mm、1080P 屏 0.1mm——要求把默认值改成自适应，别再让用户
+  手调；顺手把「重置标签」按钮挪到「统一标签字号」行后面
+  （原来挂在菜单底部提示语下方，不顺手）。
+· 自适应公式（web/util.js 新增 autoNetFontSize()）：
+    0.1mm × clamp(窗口宽 / 1920, 1..2)，圆整到 0.05 步进。
+  即 1920 及以下窗口 → 0.10mm；2560 → 0.15mm；3840(4K) →
+  0.20mm。上限 2 倍封顶（再宽也不会超过 0.2），下限 1 倍
+  （小窗口不缩，0.1 已是可用下限）。1920 基准与已移除的页面
+  缩放是同一参照系。
+· 取值优先级不变：localStorage 存过的一律优先，auto 只是无
+  存储时的出厂默认（initDefaults 与 overwriteSettings 导入兜底
+  两处都改调 autoNetFontSize()）。
+· 重置按钮移位（web/ibom.html）：按钮 div 插到「统一标签字号」
+  label 之后，原「menu-hint 提示语下方」位置的按钮删除。纯
+  HTML 挪位，resetLabelOffsets() 逻辑零改动。
+· 备份：backup-20260924_2351_网络名自适应与重置标签前/
+  （util.js、ibom.html + md5）。
+· 验证：node --check 过；拼接测试页（基线 = 23:46 重导出的
+  页面，只换 util.js + 两个 HTML 片段——用户在网络名轮修复后
+  已重新导出，内嵌 render.js/ibom.js 已是新版，勿重复 swap；
+  注意 menu-hint 在内嵌 CSS 里也有匹配，顺序断言要用页面里
+  唯一的提示语文本定位）playwright 10/10：
+    1600 → 0.10 / 2560 → 0.15 / 3840 → 0.20（setting、滑条、
+    mm 显示三处一致）；预存 0.35 在 4K 窗口仍 0.35（存储优先）；
+    重置按钮紧跟统一标签字号行、旧位置无残留、菜单内可见可点；
+    滑条 0.60mm 实时生效且重载持久；菜单点击开合回归；无页错误。
+· 生效方式：纯 web/ 改动，AD 里重新导出一次 HTML 即生效。
+· 教训：①用户手调出来的值就是最好的适配规格——自适应公式
+  直接按用户实测点（1080P→0.1、4K→0.2）反推基准与倍率；
+  ②playwright 断言 FAIL 先核对前置状态的假设（reload 后菜单
+  是关闭态、CSS 里也有同名 class），再怀疑功能——本轮菜单
+  「回归失败」两次都是测试脚本自身状态假设错误。
+
+★ 2026-09-25 00:25 · 重置按钮与统一标签字号同行（对齐+热区）
+────────────────────────────────────────────────────────
+· 现象（用户截图）：上一轮把「重置标签」挪到「统一标签字号」
+  行后之后——①按钮行上下都对不齐；②「重置标签」和「统一标签
+  字号」点了都没反应。
+· 根因（playwright 量测实锤，两问题同源）：设置菜单是 grid
+  三列布局（repeat(3, 1fr)）。统一标签字号 label 只占 1 格
+  （166px，右边两格空着）；按钮 div 规则 grid-column: 1/-1
+  强制独占一行。于是：①按钮行高 41px 夹在 38/34px 的行之间，
+  按钮右缘 1573 看着比上行数字（1545，"mm" 后缀占 28px）凸出；
+  ②两个控件的可点热区都极小——checkbox label 仅左 1/3 格，
+  按钮仅 78px——用户按行的习惯点在空白处，全部落空。
+  playwright 复现证明功能本身正常：开关切换 settings 正确、
+  重置按钮清空偏移、无任何 JS 错误——「没反应」= 点在热区外。
+· 修复（web/ibom.html 内联布局，备份
+  backup-20260925_0015_按钮对齐修复前）：统一标签字号 label
+  grid-column: 1/3（占前两格，热区 333px）；重置标签按钮
+  grid-column: 3/4 放进同一行末列，按钮 height 26px + 行
+  padding 5px 8px，行高与相邻行一致。
+· 验证：playwright 9/9——同行同高（top/bottom 全等）、按钮
+  右缘 1573 与下方各行 mm 右缘 1573 完全对齐、宽 label 空白处
+  点击也能切换、开关/重置/菜单开合回归、无页错误；菜单区域
+  截图目检布局融入整体节奏。
+· 生效方式：AD 里重新导出一次 HTML。
+· 教训：①「按了没反应」先查热区再查功能——grid/特殊布局里
+  控件的可点范围常常远小于视觉行宽；②往既有 grid 塞「占整行
+  的行」会打破行节奏，与相邻控件同行化（分配列位）比独占一行
+  更整齐。
+
+★ 2026-09-25 00:35 · 「统一标签字号」开关退役 → 「重置字体大小」按钮
+────────────────────────────────────────────────────────
+· 用户需求（两连发）：①取消统一后滑轨不跟随标签字号；②「重
+  置标签」改名「重置标签位置」；③把统一标签打勾功能改成按钮
+  「重置字体大小」——位号/参数/网络名字号一键恢复默认，滑轨
+  同步回归。
+· 方案（用户思路落地）：**统一开关整个退役**，统一字号成为唯
+  一模式——滑条=字号唯一控制，显示值恒等于生效值，「不跟随」
+  问题从根上消失。原 checkbox 位置换成「重置字体大小」按钮，
+  与「重置标签位置」同行（左/右）。
+· 修改（web/ 三文件，备份 backup-20260925_0025_滑条跟随与改名前，
+  含 ibom.js+ibom.html+util.js；util.js 00:26 补备）：
+    ibom.js：新增 resetFontSizes()——位号/参数=defaultLabelFontSize()
+      （全板中位数），网络名=autoNetFontSize()（随屏自适应），
+      **三个存储键全部清除**（换屏幕/窗口后自适应默认继续生效，
+      不会被旧手调值钉死），setUniformLabelSize(true)+滑条刷新+
+      重绘。setLabelFontSize 删掉「取消统一后拖滑条强制回勾」
+      段（checkbox 没了，该段会 null.checked 崩）。
+    util.js：新增 removeStorage()；initDefaults 与
+      overwriteSettings 两处删除 uniformLabelSizeCheckbox 的
+      DOM 引用（initBooleanSetting("uniformLabelSize",...)
+      整行删——它对不存在的元素 .checked 赋值必崩），统一模式
+      强制 true（导入文件里的 false 也无视）。
+    ibom.html：checkbox label + 按钮行 → 两个按钮 div
+      （grid-column 1/2 左对齐 + 2/4 右对齐），按钮文字
+      「重置标签」→「重置标签位置」。
+· 验证：node --check 三文件过；uniformLabelSizeCheckbox 引用
+  全项目 grep=0；拼接页（基线=用户 00:17 导出，HTML 片段+
+  ibom.js/util.js 双 swap）playwright 13/13——checkbox 消失/
+  两按钮同行同行高/右按钮与 mm 右缘对齐；预存 1.20/1.40/0.50
+  生效后点「重置字体大小」→ 0.75/0.75/0.10（=中位数/中位数/
+  自适应），滑条 15/15/2、显示 0.75/0.75/0.10 三处同步，存储
+  键清空，reload 后默认保持；「重置标签位置」仍清偏移；滑条
+  调节+持久化、菜单回归、无页错误；截图目检两按钮融入菜单节奏。
+· 生效方式：AD 里重新导出一次 HTML。
+· 教训：①测试断言 FAIL 先查测试自身（本轮 freshPage() 忘传
+  预存参数，白白怀疑了一轮竞态，诊断脚本对照才定位）；②
+  initBooleanSetting 会对不存在的元素 .checked 赋值——删
+  UI 控件必须全项目 grep 它的 id，initDefaults/overwriteSettings
+  两头的 DOM 引用一起清。
+
+
+★ 2026-09-25 01:10 · 升级打包为 InteractiveBOM Suite V1.0.00
+────────────────────────────────────────────────────────
+· 用户需求：①升级打包为 InteractiveBOM Suite V1.0.00，内部名称同步
+  更新；②对照最初版本（上游 master v0.3.16）做正式版本更新说明，
+  只看最终新增/改动，不写过程弯路。
+· 内部名称更新（显示层）：
+    dist/mainWin.dfm  Caption → 'InteractiveBOM Suite V1.0.00'
+      （原 #20132#20114#24335'HTML BOM v0.5.2-dev'，11198→11189 B）；
+    诊断对话框标题 5 处 "InteractiveHtmlBomForAD - ..." →
+      "InteractiveBOM Suite - ..."：core/ibom.js:740（Description）、
+      ecad/AD10sch.js:1229（schematic）、tools/schem_export_main.js:242
+      （独立原理图导出）+ dist/SchemExport.js 两处拷贝；bundle 内
+      两处拷贝随重建同步；
+    web/ibom.js:1625  页面版本标识 → "InteractiveBOM Suite V1.0.00"
+      （原 "InteractiveHtmlBom" + pcbdata.ibom_version 正则提取；
+      ibom_version=v2.3 数据字段保留不动）；
+    web/pep.js:5、tools 与 dist/SchemExport.js 内 /// 注释同步；
+    README.md 标题与安装步骤改新名（上游致谢链接保留）。
+· 文件改名（构建链三处同步）：
+    dist/InteractiveHtmlBomForAD.js → dist/InteractiveBOMSuite.js；
+    InteractiveHtmlBomForAD.PrjScr → InteractiveBOMSuite.PrjScr
+      （:28 DocumentPath 同步）；Initialize.bat:8 拼接目标、
+      UnInitialize.bat:11-12 清理目标同步。
+    bundle 已按 9 源顺序重建：2590435 bytes（旧 2590441，-6 = 两处
+    标题各 -3 字符）；node --check 七个改动 js 全过。
+· 刻意不改：web/util.js "InteractiveHtmlBom settings" 存档格式标记
+  及其 alert（新旧设置互通的前提）；web/ibom.html:191 上游致谢链接
+  （文字属链接语义）；dist/SchemExport.js:1 administrator1 历史路径
+  （死值，该文件非 Initialize 产物）；版本说明.txt 历史记录条目。
+· 正式发布说明：版本更新说明_V1.0.00.md——对照上游 master
+  （GitHub 下载源码实测 diff：29 文件全保留、11 个增强、13 个新增）
+  + 本版本说明全部条目归纳；不含过程弯路。
+· 分发包：InteractiveBOM-Suite-V1.0.00.zip（flat 结构同旧版；
+  staging 中 config.ini 清空个人路径（NodePath/Directory/
+  ExtraFileName）、rootPath.js 置空待 Initialize.bat 重写、
+  排除 .workbuddy/、*.utf8bak；含 版本更新说明_V1.0.00.md）。
+· 备份：backup-20260925_0100_V1.0.00升级打包前/（14 文件 + md5）。
+· 生效方式：重启 AD，打开新的 InteractiveBOMSuite.PrjScr
+  （旧 PrjScr 已改名，AD 里需重新打开一次）。
+
+★ 2026-09-25 01:25 · 消除地址锁死：SchemExport.js 纳入 Initialize 拼接 + 发布说明改简明版
+────────────────────────────────────────────────────────
+· 用户反馈：发布说明不要写修 BUG 记录和原因，要简明扼要；确认
+  没有地址锁死，切换设备要能适应。
+· 排查结论（全项目 grep administrator1/12920/AI WORK/盘符）：
+    ① dist/SchemExport.js:1 的 administrator1 路径**不是死值**——
+      :1808/:2011/:2017/:2099 实际用它读 web 模板和写输出，且该文件
+      原本不在 Initialize.bat 拼接清单里 → 换机后永远指向旧路径，
+      是真·地址锁死；
+    ② zip 内 bundle 第 1 行嵌本机 G:/AI WORK 路径（靠跑 Initialize
+      重写，但包内不应带个人路径）；
+    ③ config.ini/tools/web/core/ecad 无其它硬编码；mainWin.js 的
+      node 查找链已是多级自适应。
+· SchemExport.js 组成实锤（md5 硬验证）：= rootPath.js +
+  modules-lite\json2.js + ecad\AD10sch.js + tools\schem_export_main.js
+  （文件 :1827 自述吻合，1+536+1280+304=2121 行）。
+· 修复：
+    Initialize.bat 追加第二行 copy /b → dist\SchemExport.js 纳入
+      构建链，换机跑一次 Initialize 全适配；
+    工作副本 dist/SchemExport.js 重建（本机路径，独立导出本机恢复
+      可用——此前 administrator1 死路径下它一直是坏的）；
+    staging 两产物均以空路径 rootPath.js（var CURRENT_PATH = "";，
+      0 字节会致 CURRENT_PATH 未声明 ReferenceError，特意写成空串）
+      重建，zip 内无个人路径、无锁死。
+· 发布说明重写为简明版（版本更新说明_V1.0.00.md）：只留功能清单
+  + 改动概况 + 换机说明 + 安装步骤，修 BUG 记录与原因全部移除。
+· zip 重打包校验：43 文件、两 dist 产物首行均为空串声明、
+  node --check 全过。
+· 生效方式：重启 AD + 打开 InteractiveBOMSuite.PrjScr；本机若要用
+  独立原理图导出脚本，本次已重建为可用状态。

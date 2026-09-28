@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive BOM for KiCAD</title>
+  <style type="text/css">
+///CSS///
+///USERCSS///
+  </style>
+  <script type="text/javascript" >
+///////////////////////////////////////////////
+///SPLITJS///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///LZ-STRING///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///POINTER_EVENTS_POLYFILL///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///CONFIG///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///PCBDATA///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///UTILJS///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///RENDERJS///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///SCHEMJS///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///IBOMJS///
+///////////////////////////////////////////////
+
+///////////////////////////////////////////////
+///USERJS///
+///////////////////////////////////////////////
+  </script>
+</head>
+
+<body>
+///USERHEADER///
+<div id="topmostdiv" class="topmostdiv">
+  <div id="top">
+    <div style="float: right; height: 100%;">
+      <div class="hideonprint menu" style="float: right; top: 4px;">
+        <button class="menubtn"></button>
+        <!-- menu-grid: the settings list lays out three switches per row (see
+             ibom.css); the wide items below carry .menu-span to take a whole
+             row of their own. -->
+        <div class="menu-content menu-grid">
+          <div class="menu-label menu-label-top menu-label-action" style="text-align: right;">
+            <button id="resetColumnsBtn" class="menu-action-button" onclick="resetBomColumns()">
+              <span>重置列</span>
+            </button>
+          </div>
+          <label class="menu-label menu-label-top">
+            <input id="darkmodeCheckbox" type="checkbox" onchange="setDarkMode(this.checked)">
+            <span>暗黑模式</span>
+          </label>
+          <label class="menu-label menu-label-top">
+            <input id="fullscreenCheckbox" type="checkbox" onchange="setFullscreen(this.checked)">
+            <span>全屏</span>
+          </label>
+          <label class="menu-label">
+            <input id="silkscreenCheckbox" type="checkbox" checked onchange="silkscreenVisible(this.checked)">
+            <span>丝印</span>
+          </label>
+          <label class="menu-label">
+            <input id="referencesCheckbox" type="checkbox" checked onchange="referencesVisible(this.checked)">
+            <span>位号</span>
+          </label>
+          <label class="menu-label">
+            <input id="valuesCheckbox" type="checkbox" checked onchange="valuesVisible(this.checked)">
+            <span>参数值</span>
+          </label>
+          <label class="menu-label">
+            <input id="nativeLabelsCheckbox" type="checkbox" checked
+                   onchange="nativeLabelsVisible(this.checked)">
+            <span>原生位号</span>
+          </label>
+          <div id="tracksAndZonesCheckboxes">
+            <label class="menu-label">
+              <input id="tracksCheckbox" type="checkbox" checked onchange="tracksVisible(this.checked)">
+              <span>走线</span>
+            </label>
+            <label class="menu-label">
+              <input id="zonesCheckbox" type="checkbox" checked onchange="zonesVisible(this.checked)">
+              <span>铺铜</span>
+            </label>
+          </div>
+          <!-- Deliberately outside the tracks/zones block: this switch names
+               pads and vias as well, so it has to survive a board that carries
+               no track data at all. -->
+          <label class="menu-label">
+            <input id="netNamesCheckbox" type="checkbox" checked onchange="netNamesVisible(this.checked)">
+            <span>网络名</span>
+          </label>
+          <label class="menu-label">
+            <input id="padsCheckbox" type="checkbox" checked onchange="padsVisible(this.checked)">
+            <span>焊盘</span>
+          </label>
+          <!-- 过孔 reads as the positive switch now: ticked = vias drawn.
+               The element id keeps its old name because the settings import
+               path and the older exported pages look it up by that id. -->
+          <label class="menu-label">
+            <input id="hideViasCheckbox" type="checkbox" checked onchange="viasVisible(this.checked)">
+            <span>过孔</span>
+          </label>
+          <label class="menu-label">
+            <input id="highlightpin1Checkbox" type="checkbox" onchange="setHighlightPin1(this.checked)">
+            <span>高亮 1 脚</span>
+          </label>
+          <label class="menu-label">
+            <input id="noBomCheckbox" type="checkbox" onchange="noBomVisible(this.checked)">
+            <span>显示 No BOM 元件</span>
+          </label>
+          <label class="menu-label">
+            <input id="dragCheckbox" type="checkbox" checked onchange="setRedrawOnDrag(this.checked)">
+            <span>拖动时连续重绘</span>
+          </label>
+          <label class="menu-label menu-span">
+            <span>板旋转</span>
+            <span style="float: right"><span id="rotationDegree">0</span>&#176;</span>
+            <input id="boardRotation" type="range" min="-36" max="36" value="0" class="slider" oninput="setBoardRotation(this.value)">
+          </label>
+          <!-- [2026-09-25] Two actions share one row, same height: "重置字体
+              大小" puts all three label sizes back to their defaults (the
+               sliders follow along), "重置标签位置" clears hand-placed label
+               offsets/angles. The right button keeps its edge flush with the
+               mm values of the rows below. -->
+          <div class="menu-label menu-label-action" style="grid-column: 1 / 2; text-align: left; padding: 5px 8px;">
+            <button id="resetFontSizesBtn" class="menu-action-button" onclick="resetFontSizes()" style="height: 26px;">
+              <span>重置字体大小</span>
+            </button>
+          </div>
+          <div class="menu-label menu-label-action" style="grid-column: 2 / 4; text-align: right; padding: 5px 8px;">
+            <button id="resetLabelsBtn" class="menu-action-button" onclick="resetLabelOffsets()" style="height: 26px;">
+              <span>重置标签位置</span>
+            </button>
+          </div>
+          <label class="menu-label menu-span">
+            <span>位号字号</span>
+            <span style="float: right"><span id="refFontSizeValue">0.00</span> mm</span>
+            <input id="refFontSize" type="range" min="4" max="60" value="12" class="slider"
+                   oninput="setLabelFontSize('ref', this.value)">
+          </label>
+          <label class="menu-label menu-span">
+            <span>参数字号</span>
+            <span style="float: right"><span id="valFontSizeValue">0.00</span> mm</span>
+            <input id="valFontSize" type="range" min="4" max="60" value="10" class="slider"
+                   oninput="setLabelFontSize('val', this.value)">
+          </label>
+          <label class="menu-label menu-span">
+            <span>网络名字号</span>
+            <span style="float: right"><span id="netFontSizeValue">0.30</span> mm</span>
+            <input id="netFontSize" type="range" min="2" max="40" value="6" class="slider"
+                   oninput="setLabelFontSize('net', this.value)">
+          </label>
+          <div class="menu-hint">
+            <span>在图上拖动位号或参数即可移动，按空格键旋转 90&#176;，双击复位。</span>
+          </div>
+          <!-- High-resolution UI zoom was removed on user request (the page
+               always renders at 100%). -->
+          <label class="menu-label menu-span">
+            <div style="margin-left: 5px">BOM 复选框</div>
+            <input id="bomCheckboxes" class="menu-textbox" type=text
+                   oninput="setBomCheckboxes(this.value)">
+          </label>
+          <label class="menu-label menu-span">
+            <div style="margin-left: 5px">勾选后加深</div>
+            <div id="darkenWhenCheckedContainer"></div>
+          </label>
+          <label class="menu-label menu-span">
+            <span class="shameless-plug">
+              <span>基于</span>
+              <a id="github-link" target="blank" href="https://github.com/openscopeproject/InteractiveHtmlBom">InteractiveHtmlBom</a>
+            </span>
+          </label>
+          <!-- 装配层 and DNP 描边 lost their switches. The renderers and their
+               stored keys stay, so the inputs stay in the DOM (hidden) and the
+               settings import/export path keeps working instead of throwing on
+               a missing element. -->
+          <div style="display: none">
+            <input id="fabricationCheckbox" type="checkbox" checked
+                   onchange="fabricationVisible(this.checked)">
+            <input id="dnpOutlineCheckbox" type="checkbox" onchange="dnpOutline(this.checked)">
+          </div>
+        </div>
+      </div>
+      <div class="button-container hideonprint"
+           style="float: right; position: relative; top: 4px">
+        <button id="fl-btn" class="left-most-button" onclick="changeCanvasLayout('F')">F
+        </button>
+        <button id="fb-btn" class="middle-button" onclick="changeCanvasLayout('FB')">FB
+        </button>
+        <button id="bl-btn" class="middle-button" onclick="changeCanvasLayout('B')">B
+        </button>
+        <!-- ALL belongs to the same segmented control as F / FB / B: one click
+             hides or brings back the inner copper panes, and it stays pressed
+             while they are shown. util.js hides it on a board without inner
+             copper, where it would have nothing to do. -->
+        <button id="all-btn" class="right-most-button" onclick="toggleAllLayers()"
+                title="中间层显示开关" style="display: none">ALL</button>
+      </div>
+      <div class="button-container hideonprint"
+           style="float: right; position: relative; top: 4px">
+        <button id="bom-btn" class="left-most-button" onclick="changeBomLayout('bom-only')"></button>
+        <button id="lr-btn" class="middle-button" onclick="changeBomLayout('left-right')"></button>
+        <button id="tb-btn" class="right-most-button" onclick="changeBomLayout('top-bottom')"></button>
+      </div>
+      <div class="button-container hideonprint"
+           style="float: right; position: relative; top: 4px">
+        <button id="left-bom-btn" class="left-most-button depressed" onclick="changeLeftPane('bom')"
+                title="只看 BOM">BOM</button>
+        <!-- The split button draws the split it stands for: BOM above, a rule,
+             then the schematic below. -->
+        <button id="left-split-btn" class="middle-button" onclick="changeLeftPane('both')"
+                title="BOM 在上，SCH 在下"><span class="stack-label">
+          <span>BOM</span>
+          <span class="stack-sep"></span>
+          <span>SCH</span>
+        </span></button>
+        <button id="left-schem-btn" class="right-most-button" onclick="changeLeftPane('schem')"
+                title="只看 SCH">SCH</button>
+      </div>
+      <div class="button-container hideonprint"
+           style="float: right; position: relative; top: 4px">
+        <button id="bom-grouped-btn" class="left-most-button" onclick="changeBomMode('grouped')"></button>
+        <button id="bom-ungrouped-btn" class="middle-button" onclick="changeBomMode('ungrouped')"></button>
+
+      </div>
+      <!-- 丝印 / BOM are the only keys whose artwork is a word, so they need
+           their own size rule (see .silk-bom-keys in ibom.css). -->
+      <div class="hideonprint silk-bom-keys"
+           style="float: right; top: 10px; position: relative; margin-right: 15px;">
+        <button class="left-most-button" onclick="printSilkscreen()">
+          <span>丝印</span>
+        </button>
+        <button class="right-most-button" onclick="exportBom()"
+                title="导出 BOM 为 Excel 表">
+          <span>BOM</span>
+        </button>
+      </div>
+      <div class="hideonprint menu" style="float: right; top: 4px;">
+        <button class="statsbtn"></button>
+        <div class="menu-content">
+          <table class="stats">
+            <tbody>
+              <tr>
+                <td width="40%">板统计</td>
+                <td>正面</td>
+                <td>背面</td>
+                <td>合计</td>
+              </tr>
+              <tr>
+                <td>元件数</td>
+                <td id="stats-components-front">~</td>
+                <td id="stats-components-back">~</td>
+                <td id="stats-components-total">~</td>
+              </tr>
+              <tr>
+                <td>分组数</td>
+                <td id="stats-groups-front">~</td>
+                <td id="stats-groups-back">~</td>
+                <td id="stats-groups-total">~</td>
+              </tr>
+              <tr>
+                <td>SMD 焊盘</td>
+                <td id="stats-smd-pads-front">~</td>
+                <td id="stats-smd-pads-back">~</td>
+                <td id="stats-smd-pads-total">~</td>
+              </tr>
+              <tr>
+                <td>TH 焊盘</td>
+                <td colspan=3 id="stats-th-pads">~</td>
+              </tr>
+            </tbody>
+          </table>
+          <table class="stats">
+            <col width="40%"/><col />
+            <tbody id="checkbox-stats">
+              <tr>
+                <td colspan=2 style="border-top: 0">复选框</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="hideonprint menu" style="float: right; top: 4px;">
+        <button class="iobtn"></button>
+        <div class="menu-content">
+          <div class="menu-label menu-label-top">
+            <div style="margin-left: 5px;">保存板图</div>
+            <div class="flexbox">
+              <input id="render-save-width" class="menu-textbox" type="text" value="1000"
+                  style="flex-grow: 1; width: 50px;" oninput="validateSaveImgDimension(this)">
+              <span>X</span>
+              <input id="render-save-height" class="menu-textbox" type="text" value="1000"
+                  style="flex-grow: 1; width: 50px;" oninput="validateSaveImgDimension(this)">
+            </div>
+            <label>
+              <input id="render-save-transparent" type="checkbox">
+              <span>透明背景</span>
+            </label>
+            <div class="flexbox">
+              <button class="savebtn" onclick="saveImage('F')">正面</button>
+              <button class="savebtn" onclick="saveImage('B')">背面</button>
+
+            </div>
+          </div>
+          <div class="menu-label">
+            <span style="margin-left: 5px;">配置与复选框状态</span>
+            <div class="flexbox">
+              <button class="savebtn" onclick="saveSettings()">导出</button>
+              <button class="savebtn" onclick="loadSettings()">导入</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="fileinfodiv" style="overflow: auto;">
+      <table class="fileinfo">
+        <tbody>
+          <tr>
+            <td id="title" class="title" style="width: 70%">
+              标题
+            </td>
+            <td id="revision" class="title" style="width: 30%">
+              版本
+            </td>
+          </tr>
+          <!-- The date shares the "Rev:" line, so this row only exists to carry
+               the company. populateMetadata() collapses it when there is none
+               instead of leaving an empty line under the title. -->
+          <tr id="companyrow">
+            <td id="company">
+              公司
+            </td>
+            <td id="filedate">
+              日期
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="bot" class="split" style="height: calc(100% - 58px)">
+    <div id="bomdiv" class="split split-horizontal">
+      <div style="width: 100%">
+        <input id="reflookup" class="textbox searchbox reflookup hideonprint" type="text" placeholder="位号查找"
+               oninput="updateRefLookup(this.value)">
+        <input id="filter" class="textbox searchbox filter hideonprint" type="text" placeholder="筛选"
+               oninput="updateFilter(this.value)">
+        <div class="button-container hideonprint" style="float: left; margin: 0;">
+          <button id="copy"
+               onclick="copyToClipboard()"></button>
+        </div>
+      </div>
+      <div id="bomwrap">
+        <div id="dbg"></div>
+        <table class="bom">
+          <colgroup id="bomcolgroup"></colgroup>
+          <thead id="bomhead">
+          </thead>
+          <tbody id="bombody">
+          </tbody>
+        </table>
+      </div>
+      <!-- Split-mode divider (BOM on top, schematic below). Hidden unless
+           changeLeftPane('both') reveals it; the drag lives in schem.js. -->
+      <div id="schemgrip" class="hideonprint" title="拖动调整上下比例"></div>
+      <!-- Deliberately no inline display on these three: an inline style
+           outranks every stylesheet rule, so a "display: none" here would make
+           the switch unable to ever reveal the pane (the pane then looks
+           empty). The hidden default lives in ibom.css and changeLeftPane()
+           drives both panes explicitly. -->
+      <div id="schemdiv">
+        <div id="schembar">
+          <span id="schemnote" class="sch-note">原理图</span>
+        </div>
+        <div id="schemview"></div>
+        <div id="schemempty" class="sch-empty">
+          <div id="schememptywhy" class="sch-why"></div>
+          <button id="schemdiagcopy" class="sch-copybtn hideonprint"
+                  onclick="schemCopyDiag()">复制诊断</button>
+          <pre id="schemdiagtext" class="sch-diag"></pre>
+        </div>
+      </div>
+    </div>
+    <div id="canvasdiv" class="split split-horizontal">
+      <div id="frontcanvas" class="split" touch-action="none" style="overflow: hidden">
+        <div style="position: relative; width: 100%; height: 100%;">
+          <canvas id="F_bg" style="position: absolute; left: 0; top: 0; z-index: 0;"></canvas>
+          <canvas id="F_fab" style="position: absolute; left: 0; top: 0; z-index: 1;"></canvas>
+          <canvas id="F_slk" style="position: absolute; left: 0; top: 0; z-index: 2;"></canvas>
+          <canvas id="F_hl" style="position: absolute; left: 0; top: 0; z-index: 3;"></canvas>
+        </div>
+      </div>
+      <div id="backcanvas" class="split" touch-action="none" style="overflow: hidden">
+        <div style="position: relative; width: 100%; height: 100%;">
+          <canvas id="B_bg" style="position: absolute; left: 0; top: 0; z-index: 0;"></canvas>
+          <canvas id="B_fab" style="position: absolute; left: 0; top: 0; z-index: 1;"></canvas>
+          <canvas id="B_slk" style="position: absolute; left: 0; top: 0; z-index: 2;"></canvas>
+          <canvas id="B_hl" style="position: absolute; left: 0; top: 0; z-index: 3;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+///USERFOOTER///
+</body>
+
+</html>

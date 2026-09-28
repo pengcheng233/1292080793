@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WKP263-A V1.1 · 原理图</title>
+<style>/* Standalone schematic page stylesheet.
+ *
+ * This is the schematic pane of web/schem.js lifted out of the full ibom page so
+ * the export can be opened on its own, with pan/zoom, sheet tabs, a designator
+ * search box and a light/dark toggle, but no BOM. It mirrors the relevant rules
+ * from ibom.css (the --schem-* palette, the sheet SVG classes) and adds a small
+ * top bar. Keep it in the same ES3-free, plain-CSS style as the rest of the
+ * project: no CSS nesting, no custom properties beyond the simple --schem-* set. */
+
+:root {
+  /* Schematic palette: ink on paper. The dark theme only shifts the sheet
+     background and the ink, it does not invert the whole drawing. */
+  --schem-line-color: #1f3f8f;
+  --schem-wire-color: #2255cc;
+  --schem-pin-color: #000000;
+  --schem-text-color: #222222;
+  --schem-net-color: #007020;
+  --schem-port-color: #7a1f7a;
+  --schem-power-color: #a05200;
+  --schem-symbol-color: #8a6000;
+  --schem-highlight: #ff0000;
+  --schem-sheet-bg: #fbfbf8;
+  --schem-sheet-edge: #cccccc;
+
+  --schem-topbar-bg: #f3f3f0;
+  --schem-topbar-fg: #222222;
+  --schem-border: #999999;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: Verdana, "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+body.dark {
+  --schem-line-color: #8fb6ff;
+  --schem-wire-color: #88aaff;
+  --schem-pin-color: #dddddd;
+  --schem-text-color: #e0e0e0;
+  --schem-net-color: #6fd06f;
+  --schem-port-color: #d79ad7;
+  --schem-power-color: #e0a060;
+  --schem-symbol-color: #d7b06a;
+  --schem-highlight: #ff5a5a;
+  --schem-sheet-bg: #20262a;
+  --schem-sheet-edge: #3a444a;
+  --schem-topbar-bg: #2b3137;
+  --schem-topbar-fg: #e0e0e0;
+  --schem-border: #3a444a;
+  background-color: #252c30;
+  color: #eee;
+}
+
+/* --- top bar --------------------------------------------------------------- */
+.sch-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px;
+  background-color: var(--schem-topbar-bg);
+  color: var(--schem-topbar-fg);
+  border-bottom: 1px solid var(--schem-border);
+}
+
+.sch-title {
+  font-size: 11pt;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.sch-spacer { flex: 1 1 auto; }
+
+.sch-search {
+  height: 26px;
+  width: 200px;
+  padding: 0 6px;
+  font-size: 10pt;
+  border: 1px solid var(--schem-border);
+  border-radius: 3px;
+  background: #ffffff;
+  color: #222222;
+}
+body.dark .sch-search { background: #1c2126; color: #e0e0e0; }
+
+.sch-themebtn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 10pt;
+  cursor: pointer;
+  border: 1px solid var(--schem-border);
+  border-radius: 3px;
+  background: #eeeeee;
+  color: #222222;
+}
+body.dark .sch-themebtn { background: #3a444a; color: #e0e0e0; }
+
+.sch-build {
+  font-size: 8.5pt;
+  color: #888888;
+  white-space: nowrap;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.dark .sch-build { color: #9aa5ab; }
+
+/* --- schematic pane -------------------------------------------------------- */
+#schemdiv {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#schembar {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  font-size: 9pt;
+  overflow: auto;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--schem-border);
+}
+
+.sch-note {
+  margin-right: 6px;
+  color: var(--schem-text-color);
+}
+
+/* Shown when the export carried no schematic at all: a strip with the reason
+   and the reader's own notes, never a blank pane. */
+.sch-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+  font-size: 9pt;
+  color: #888888;
+  border-top: 1px solid #dddddd;
+}
+body.dark .sch-empty { color: #9aa5ab; border-top: 1px solid #3a444a; }
+
+.sch-why {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.sch-copybtn {
+  height: 22px;
+  margin: 6px 0 4px 0;
+  padding: 0 8px;
+  font-size: 9pt;
+  cursor: pointer;
+}
+
+.sch-diag {
+  margin: 0;
+  font-family: Consolas, "DejaVu Sans Mono", Monaco, monospace;
+  font-size: 8.5pt;
+  white-space: pre-wrap;
+  word-break: break-all;
+  /* Selectable, so "copy the diagnosis" also works by hand. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sch-tab {
+  height: 22px;
+  width: auto;
+  padding: 0 6px;
+  margin-right: 3px;
+  font-size: 9pt;
+  font-weight: normal;
+}
+
+#schemview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--schem-sheet-bg);
+}
+
+.sch-holder {
+  width: 100%;
+  height: 100%;
+}
+
+.sch-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Altium's default schematic font is Times New Roman (serif); matching it
+     keeps exported text width close to the original and far narrower than
+     Verdana, which crowded long pin names into each other. */
+  font-family: "Times New Roman", "SimSun", serif;
+}
+
+/* Stroke widths are plain data units (1/100 inch) and scale with zoom, so the
+   drawing looks the same at every zoom level - no artificial bolding when
+   zoomed out, no hairlines when zoomed in. */
+
+/* Wires and symbol graphics share the primitive classes; wires get their own
+   blue at sheet level, and the override below hands symbol graphics back the
+   line palette. 2 units keep the drawing light; the point-merge in the net
+   builder covers the 1-grid-unit gaps present in the Altium data. */
+.sch-line, .sch-rect, .sch-poly, .sch-arc, .sch-ellipse, .sch-sheetsym {
+  fill: none;
+  stroke: var(--schem-wire-color);
+  stroke-width: 2;
+}
+
+.sch-comp .sch-line, .sch-comp .sch-rect, .sch-comp .sch-poly,
+.sch-comp .sch-arc, .sch-comp .sch-ellipse {
+  stroke: var(--schem-line-color);
+}
+
+.sch-sheetsym {
+  stroke: var(--schem-symbol-color);
+}
+
+.sch-sheetsym-text, .sch-text, .sch-ref, .sch-pin-num, .sch-freetext {
+  fill: var(--schem-text-color);
+  stroke: none;
+}
+
+.sch-sheetsym-text {
+  fill: var(--schem-symbol-color);
+}
+
+.sch-pin-num {
+  fill: var(--schem-text-color);
+  stroke: none;
+}
+
+.sch-pin {
+  stroke: var(--schem-pin-color);
+  stroke-width: 2;
+}
+
+.sch-pin-dot {
+  fill: none;
+  stroke: var(--schem-pin-color);
+  stroke-width: 1;
+}
+
+.sch-junction {
+  fill: var(--schem-line-color);
+  stroke: none;
+}
+
+.sch-netlabel {
+  fill: var(--schem-net-color);
+  stroke: none;
+}
+
+.sch-port {
+  fill: var(--schem-port-color);
+  stroke: none;
+}
+
+.sch-power {
+  fill: var(--schem-power-color);
+  stroke: none;
+}
+
+.sch-power-sym {
+  stroke: var(--schem-power-color);
+  stroke-width: 1.6;
+  fill: none;
+}
+
+.sch-sheetbg {
+  fill: var(--schem-sheet-bg);
+  stroke: var(--schem-sheet-edge);
+  stroke-width: 1;
+}
+
+/* Click a wire / pin / net label / power symbol: the whole electrical net
+   lights up in the highlight color until the next click. */
+line.sch-net-hl, polyline.sch-net-hl, path.sch-net-hl {
+  stroke: var(--schem-highlight);
+  stroke-width: 4; /* double the normal 2 so a lit net pops out */
+}
+
+circle.sch-net-hl {
+  stroke: var(--schem-highlight);
+  fill: var(--schem-highlight);
+}
+
+text.sch-net-hl {
+  fill: var(--schem-highlight);
+  stroke: none;
+  font-weight: bold;
+}
+
+g.sch-net-hl .sch-power-sym {
+  stroke: var(--schem-highlight);
+  stroke-width: 4;
+}
+
+g.sch-net-hl .sch-power {
+  fill: var(--schem-highlight);
+  font-weight: bold;
+}
+
+.sch-hit {
+  fill: transparent;
+  stroke: none;
+}
+
+.sch-comp {
+  cursor: pointer;
+}
+
+/* Designators/parameters are individually draggable labels. */
+.sch-text[data-mv] {
+  cursor: move;
+}
+
+.sch-comp:hover .sch-hit {
+  fill: var(--schem-highlight);
+  fill-opacity: 0.10;
+}
+
+.sch-comp.sch-hl .sch-hit {
+  fill: var(--schem-highlight);
+  fill-opacity: 0.18;
+  stroke: var(--schem-highlight);
+  stroke-width: 1.5;
+}
+
+.sch-comp.sch-hl .sch-ref {
+  fill: var(--schem-highlight);
+  font-weight: bold;
+}
+
+/* Hide the print-only chrome when the page is printed. */
+.hideonprint { }
+@media print {
+  .hideonprint { display: none !important; }
+  #schemview { overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="sch-topbar hideonprint">
+  <span class="sch-title">WKP263-A V1.1 · 原理图</span>
+  <input id="schsearch" class="sch-search" type="text" placeholder="位号查找"
+         oninput="schemSearch(this.value)">
+  <span class="sch-spacer"></span>
+  <button class="sch-themebtn" onclick="document.body.classList.toggle('dark')"
+          title="切换亮 / 暗主题">主题</button>
+  <span class="sch-build" title="导出时 AD 脚本的标记，可用来判断是不是旧脚本">schdoc2html 2026-09-23 (offline)</span>
+</div>
+<!-- The schematic fills the rest of the page. #schemdiv is visible by default
+     (no inline display:none here: an inline display would outrank the stylesheet
+     and the switch could never reveal the pane). ensureSchem() decides which of
+     #schemview / #schemempty to show once the data is known. -->
+<div id="schemdiv">
+  <div id="schembar"><span id="schemnote" class="sch-note">原理图</span></div>
+  <div id="schemview"></div>
+  <div id="schemempty" class="sch-empty">
+    <div id="schememptywhy" class="sch-why"></div>
+    <button id="schemdiagcopy" class="sch-copybtn"
+            onclick="schemCopyDiag()">复制诊断</button>
+    <pre id="schemdiagtext" class="sch-diag"></pre>
+  </div>
+</div>
+<!-- The page data, injected by the AD-side exporter. Kept as a plain global so
+     web/schem.js (loaded next) can read it the same way the full ibom page does. -->
+<script>var pcbdata = {"adbuild":"schdoc2html 2026-09-23 (offline, no Altium)","schem":{"units":0.254,"diag":["records=1030 comps=46 pins=97 wires=82 netlabels=58 powerports=20","embedded images skipped: 1"],"sheets":[{"name":"WKP263-A V1.1","w":1500,"h":950,"comps":[{"ref":"B+","val":"","fp":"","x":650,"y":50,"rot":270,"box":[0,0,657,90],"prim":[["p",650,50,10,90,"1","",0,1],["e",650,45,5,5],["t",645,30,10,"B+","d"],["t",645,30,10,"","p"]]},{"ref":"B-","val":"","fp":"","x":680,"y":50,"rot":270,"box":[0,0,687,90],"prim":[["p",680,50,10,90,"1","",0,1],["e",680,45,5,5],["t",675,30,10,"B-","d"],["t",675,30,10,"","p"]]},{"ref":"H3","val":"","fp":"","x":710,"y":50,"rot":270,"box":[0,0,717,90],"prim":[["p",710,50,10,90,"1","",0,1],["e",710,45,5,5],["t",705,30,10,"H3","d"],["t",705,30,10,"","p"]]},{"ref":"Q1","val":"AP45P01DF","fp":"","x":470,"y":390,"rot":90,"box":[1,0,487,433],"prim":[["p",480,430,10,0,"3","D",1,0],["p",470,400,10,270,"1","G",1,0],["p",460,430,10,180,"2","S",1,0],["t",480,410,11,"D"],["t",470,400,11,"G"],["t",450,410,11,"S"],["l",477,423,477,413],["l",470,423,470,413],["l",479,411,461,411],["l",479,413,475,413],["l",468,413,472,413],["l",461,413,465,413],["l",470,400,470,411],["l",477,423,477,430],["l",470,423,463,423],["pg",470,421,472,415,468,415],["pg",467,430,472,433,472,427],["pl",466,427,467,428,467,432,468,433],["l",459,430,467,430],["l",463,423,463,413],["l",463,423,463,430],["l",472,430,480,430],["t",470,370,10,"Q1","d"],["t",430,350,10,"AP45P01DF","p"]]},{"ref":"R12","val":"470K","fp":"","x":430,"y":380,"rot":90,"box":[0,0,459,411],"prim":[["p",430,410,10,90,"2","2",0,0],["p",430,390,10,270,"1","1",0,0],["pl",434,410,426,410,426,390,434,390,434,410],["t",435,401,10,"R12","d"],["t",435,391,10,"470K","p"]]},{"ref":"R16","val":"100R","fp":"","x":390,"y":380,"rot":0,"box":[0,0,423,395],"prim":[["p",420,380,10,0,"2","2",0,0],["p",400,380,10,180,"1","1",0,0],["pl",420,376,420,384,400,384,400,376,420,376],["t",399,385,10,"R16","d"],["t",399,365,10,"100R","p"]]},{"ref":"R13","val":"1K","fp":"","x":500,"y":380,"rot":90,"box":[0,0,523,411],"prim":[["p",500,410,10,90,"2","2",0,0],["p",500,390,10,270,"1","1",0,0],["pl",504,410,496,410,496,390,504,390,504,410],["t",505,401,10,"R13","d"],["t",505,391,10,"1K","p"]]},{"ref":"R1","val":"470K","fp":"","x":750,"y":680,"rot":270,"box":[0,0,779,680],"prim":[["p",750,650,10,270,"2","2",0,0],["p",750,670,10,90,"1","1",0,0],["pl",746,650,754,650,754,670,746,670,746,650],["t",755,661,10,"R1","d"],["t",755,651,10,"470K","p"]]},{"ref":"R6","val":"47K","fp":"","x":750,"y":620,"rot":270,"box":[0,0,773,620],"prim":[["p",750,590,10,270,"2","2",0,0],["p",750,610,10,90,"1","1",0,0],["pl",746,590,754,590,754,610,746,610,746,590],["t",755,601,10,"R6","d"],["t",755,591,10,"47K","p"]]},{"ref":"R2","val":"4.7R","fp":"","x":720,"y":670,"rot":270,"box":[0,0,749,670],"prim":[["p",720,640,10,270,"2","2",0,0],["p",720,660,10,90,"1","1",0,0],["pl",716,640,724,640,724,660,716,660,716,640],["t",725,651,10,"R2","d"],["t",725,641,10,"4.7R","p"]]},{"ref":"C2","val":"105/25V","fp":"","x":720,"y":590,"rot":90,"box":[0,0,772,610],"prim":[["p",720,605,10,90,"2","2",0,0],["p",720,600,10,270,"1","1",0,0],["l",715,600,725,600],["l",715,605,725,605],["t",726,596,10,"C2","d"],["t",730,600,10,"105/25V","p"]]},{"ref":"U1","val":"4451 3*3","fp":"","x":870,"y":650,"rot":0,"box":[0,0,920,720],"prim":[["r",820,590,100,120],["p",920,640,19,0,"1","BAT",1,1],["p",920,660,19,0,"2","DONE",1,1],["p",920,680,19,0,"3","CHRG",1,1],["p",920,620,19,0,"4","ENB",1,1],["p",880,589,19,270,"5","GND",1,1],["p",819,620,19,180,"6","ILIM",1,1],["p",819,650,19,180,"7","NC",1,1],["p",819,680,19,180,"8","VCC",1,1],["p",860,589,19,270,"0","GND",1,1],["t",820,710,10,"U1","d"],["t",840,710,10,"4451 3*3","p"]]},{"ref":"R7","val":"1.3K","fp":"","x":780,"y":620,"rot":270,"box":[0,0,809,620],"prim":[["p",780,590,10,270,"2","2",0,0],["p",780,610,10,90,"1","1",0,0],["pl",776,590,784,590,784,610,776,610,776,590],["t",785,601,10,"R7","d"],["t",785,591,10,"1.3K","p"]]},{"ref":"C3","val":"475","fp":"","x":980,"y":590,"rot":90,"box":[0,0,1004,606],"prim":[["p",980,605,10,90,"2","2",0,0],["p",980,600,10,270,"1","1",0,0],["l",975,600,985,600],["l",975,605,985,605],["t",986,596,10,"C3","d"],["t",986,586,10,"475","p"]]},{"ref":"B+3","val":"","fp":"","x":1010,"y":130,"rot":270,"box":[0,0,1023,130],"prim":[["p",1010,130,10,90,"1","",0,1],["e",1010,125,5,5],["t",1005,110,10,"B+3","d"],["t",1005,110,10,"","p"]]},{"ref":"R18","val":"2R","fp":"","x":100,"y":220,"rot":270,"box":[0,0,123,270],"prim":[["p",100,190,10,270,"2","2",0,0],["p",100,210,10,90,"1","1",0,0],["pl",96,190,104,190,104,210,96,210,96,190],["t",105,201,10,"R18","d"],["t",105,191,10,"2R","p"]]},{"ref":"C4","val":"475","fp":"","x":100,"y":135,"rot":90,"box":[0,0,124,270],"prim":[["p",100,150,10,90,"2","2",0,0],["p",100,145,10,270,"1","1",0,0],["l",95,145,105,145],["l",95,150,105,150],["t",106,141,10,"C4","d"],["t",106,131,10,"475","p"]]},{"ref":"B-1","val":"","fp":"","x":1090,"y":130,"rot":270,"box":[0,0,1103,130],"prim":[["p",1090,130,10,90,"1","",0,1],["e",1090,125,5,5],["t",1085,110,10,"B-1","d"],["t",1085,110,10,"","p"]]},{"ref":"5V","val":"","fp":"","x":1050,"y":130,"rot":270,"box":[0,0,1057,130],"prim":[["p",1050,130,10,90,"1","",0,1],["e",1050,125,5,5],["t",1045,110,10,"5V","d"],["t",1045,110,10,"","p"]]},{"ref":"V-1","val":"","fp":"","x":520,"y":600,"rot":0,"box":[0,0,528,615],"prim":[["p",520,600,10,0,"1","",0,1],["e",515,600,5,5],["t",510,605,10,"V-1","d"],["t",510,595,10,"","p"]]},{"ref":"V+","val":"","fp":"","x":520,"y":620,"rot":0,"box":[0,0,522,635],"prim":[["p",520,620,10,0,"1","",0,1],["e",515,620,5,5],["t",510,625,10,"V+","d"],["t",510,615,10,"","p"]]},{"ref":"CLK","val":"","fp":"","x":520,"y":580,"rot":0,"box":[0,0,528,595],"prim":[["p",520,580,10,0,"1","",0,1],["e",515,580,5,5],["t",510,585,10,"CLK","d"],["t",510,575,10,"","p"]]},{"ref":"DAT","val":"","fp":"","x":520,"y":560,"rot":0,"box":[0,0,528,575],"prim":[["p",520,560,10,0,"1","",0,1],["e",515,560,5,5],["t",510,565,10,"DAT","d"],["t",510,555,10,"","p"]]},{"ref":"TX","val":"","fp":"","x":520,"y":660,"rot":0,"box":[0,0,522,675],"prim":[["p",520,660,10,0,"1","",0,1],["e",515,660,5,5],["t",510,665,10,"TX","d"],["t",510,655,10,"","p"]]},{"ref":"RX","val":"","fp":"","x":520,"y":640,"rot":0,"box":[0,0,522,655],"prim":[["p",520,640,10,0,"1","",0,1],["e",515,640,5,5],["t",510,645,10,"RX","d"],["t",510,635,10,"","p"]]},{"ref":"B+2","val":"","fp":"","x":520,"y":680,"rot":0,"box":[0,0,528,695],"prim":[["p",520,680,10,0,"1","",0,1],["e",515,680,5,5],["t",510,685,10,"B+2","d"],["t",510,675,10,"","p"]]},{"ref":"R19","val":"470K","fp":"","x":800,"y":260,"rot":270,"box":[0,0,829,270],"prim":[["p",800,230,10,270,"2","2",0,0],["p",800,250,10,90,"1","1",0,0],["pl",796,230,804,230,804,250,796,250,796,230],["t",805,241,10,"R19","d"],["t",805,231,10,"470K","p"]]},{"ref":"R20","val":"470K","fp":"","x":860,"y":260,"rot":270,"box":[0,0,889,270],"prim":[["p",860,230,10,270,"2","2",0,0],["p",860,250,10,90,"1","1",0,0],["pl",856,230,864,230,864,250,856,250,856,230],["t",865,241,10,"R20","d"],["t",865,231,10,"470K","p"]]},{"ref":"SW1","val":"3*6","fp":"","x":800,"y":170,"rot":90,"box":[1,0,821,270],"prim":[["p",800,180,10,270,"1","1",1,0],["p",800,190,10,90,"2","2",1,0],["e",800,180,1,1],["e",800,190,1,1],["r",794,175,2,20],["r",790,181,5,8],["l",800,178,800,176],["l",800,194,800,192],["t",803,185,10,"SW1","d"],["t",803,175,10,"3*6","p"]]},{"ref":"SW2","val":"4.5*4.5*4.3 C","fp":"","x":860,"y":200,"rot":270,"box":[1,0,948,270],"prim":[["p",860,190,10,90,"1","1",1,0],["p",860,180,10,270,"2","2",1,0],["e",860,190,1,1],["e",860,180,1,1],["r",864,175,2,20],["r",865,181,5,8],["l",860,192,860,194],["l",860,176,860,178],["t",870,185,10,"SW2","d"],["t",870,175,10,"4.5*4.5*4.3 C","p"]]},{"ref":"L1","val":"","fp":"","x":1070,"y":660,"rot":180,"box":[0,0,1082,675],"prim":[["p",1070,660,10,180,"1","",0,1],["e",1075,660,5,5],["t",1070,665,10,"L1","d"],["t",1070,655,10,"","p"]]},{"ref":"L2","val":"","fp":"","x":1070,"y":650,"rot":180,"box":[0,0,1082,665],"prim":[["p",1070,650,10,180,"1","",0,1],["e",1075,650,5,5],["t",1070,655,10,"L2","d"],["t",1070,645,10,"","p"]]},{"ref":"L3","val":"","fp":"","x":1070,"y":640,"rot":180,"box":[0,0,1082,655],"prim":[["p",1070,640,10,180,"1","",0,1],["e",1075,640,5,5],["t",1070,645,10,"L3","d"],["t",1070,635,10,"","p"]]},{"ref":"L4","val":"","fp":"","x":1070,"y":630,"rot":180,"box":[0,0,1082,645],"prim":[["p",1070,630,10,180,"1","",0,1],["e",1075,630,5,5],["t",1070,635,10,"L4","d"],["t",1070,625,10,"","p"]]},{"ref":"L5","val":"","fp":"","x":1070,"y":620,"rot":180,"box":[0,0,1082,635],"prim":[["p",1070,620,10,180,"1","",0,1],["e",1075,620,5,5],["t",1070,625,10,"L5","d"],["t",1070,615,10,"","p"]]},{"ref":"L6","val":"","fp":"","x":1070,"y":610,"rot":180,"box":[0,0,1082,625],"prim":[["p",1070,610,10,180,"1","",0,1],["e",1075,610,5,5],["t",1070,615,10,"L6","d"],["t",1070,605,10,"","p"]]},{"ref":"D1","val":"PESDU4581P1H","fp":"","x":60,"y":160,"rot":270,"box":[1,0,132,270],"prim":[["p",60,140,10,270,"1","1",1,0],["p",60,150,10,90,"2","2",1,0],["pg",66,140,60,145,54,140],["pg",54,150,60,145,66,150],["pl",53,147,53,145,67,145,67,143],["l",60,150,60,152],["l",60,140,60,138],["t",68,143,10,"D1","d"],["t",60,70,10,"PESDU4581P1H","p"]]},{"ref":"R3","val":"1M","fp":"","x":100,"y":460,"rot":270,"box":[0,0,104,460],"prim":[["p",100,430,10,270,"2","2",0,0],["p",100,450,10,90,"1","1",0,0],["pl",104,430,96,430,96,450,104,450,104,430],["t",80,450,10,"R3","d"],["t",80,440,10,"1M","p"]]},{"ref":"R4","val":"100R","fp":"","x":100,"y":380,"rot":90,"box":[0,0,129,411],"prim":[["p",100,410,10,90,"2","2",0,0],["p",100,390,10,270,"1","1",0,0],["pl",96,410,104,410,104,390,96,390,96,410],["t",105,401,10,"R4","d"],["t",105,391,10,"100R","p"]]},{"ref":"R8","val":"100K","fp":"","x":160,"y":370,"rot":90,"box":[0,0,184,410],"prim":[["p",160,400,10,90,"2","2",0,0],["p",160,380,10,270,"1","1",0,0],["pl",164,400,156,400,156,380,164,380,164,400],["t",160,400,10,"R8","d"],["t",160,370,10,"100K","p"]]},{"ref":"R5","val":"100R","fp":"","x":160,"y":420,"rot":90,"box":[0,0,189,451],"prim":[["p",160,450,10,90,"2","2",0,0],["p",160,430,10,270,"1","1",0,0],["pl",164,450,156,450,156,430,164,430,164,450],["t",165,441,10,"R5","d"],["t",165,431,10,"100R","p"]]},{"ref":"U2","val":"MS32C001B-QFN20","fp":"","x":210,"y":230,"rot":0,"box":[0,0,470,260],"prim":[["p",220,240,10,180,"0","GND",1,1],["r",220,90,250,160],["t",310,160,15,"QFN20-3X3"],["p",470,110,10,0,"11","PB1/ADC_IN0/TIM1_CH2N",1,1],["p",220,230,10,180,"1","PC1-OSCIN",1,1],["p",220,150,10,180,"6","PB5/TIM1_CH3/TIM14_CH1",1,1],["p",470,220,10,0,"19","PA5/TIM1_CH1/TIM14_CH1",1,1],["p",470,200,10,0,"17","PC0-NRST/ADC_IN5",1,1],["p",220,200,10,180,"4","PB6/ADC_IN6/SWDIO",1,1],["p",470,120,10,0,"12","PB0/ADC_IN7/TIM1_CH2",1,1],["p",470,210,10,0,"18","PA7/ADC_IN4/TIM1_CH4",1,1],["p",220,130,10,180,"8","PB3/TIM1_ETR",1,1],["p",220,190,10,180,"5","VCC",1,1],["p",220,110,10,180,"10","PB2/TIM1_CH1N/TIM1_CH3",1,1],["p",470,140,10,0,"14","PA1/TIM1_CH2",1,1],["p",220,140,10,180,"7","PA2/TIM1_CH4/SWCLK",1,1],["p",470,150,10,0,"15","PA3/ADC_IN1/TIM1_CH2",1,1],["p",470,190,10,0,"16","PA4/ADC_IN2/TIM1_CH3/TIM14_CH1",1,1],["p",470,230,10,0,"20","PA6/ADC_IN3/EVENTOUT",1,1],["p",220,220,10,180,"2","PB7-OSCOUT/TIM14_CH1",1,1],["p",220,210,10,180,"3","VSS",1,1],["p",220,120,10,180,"9","PB4/TIM1_BKIN",1,1],["p",470,130,10,0,"13","PA0/TIM1_CH1",1,1],["p",220,240,10,180,"0","PAD",1,1],["t",220,250,10,"U2","d"],["t",220,80,10,"MS32C001B-QFN20","p"]]},{"ref":"C","val":"","fp":"","x":650,"y":230,"rot":180,"box":[0,0,650,245],"prim":[["p",650,230,10,0,"1","",0,1],["e",645,230,5,5],["t",640,235,10,"C","d"],["t",640,225,10,"","p"]]},{"ref":"D","val":"","fp":"","x":650,"y":200,"rot":180,"box":[0,0,650,215],"prim":[["p",650,200,10,0,"1","",0,1],["e",645,200,5,5],["t",640,205,10,"D","d"],["t",640,195,10,"","p"]]},{"ref":"V","val":"","fp":"","x":650,"y":170,"rot":180,"box":[0,0,650,185],"prim":[["p",650,170,10,0,"1","",0,1],["e",645,170,5,5],["t",640,175,10,"V","d"],["t",640,165,10,"","p"]]},{"ref":"G","val":"","fp":"","x":650,"y":140,"rot":180,"box":[0,0,650,155],"prim":[["p",650,140,10,0,"1","",0,1],["e",645,140,5,5],["t",640,145,10,"G","d"],["t",640,135,10,"","p"]]}],"gfx":[["l",680,80,680,60],["l",650,80,650,60],["l",710,80,710,60],["pl",500,440,500,430,490,430],["l",500,420,500,430],["pl",500,380,500,370,540,370],["r",350,310,200,200],["pl",430,380,470,380,470,390],["l",360,380,390,380],["l",780,630,750,630],["pl",780,580,780,570,860,570,880,570],["r",700,530,300,200],["l",980,680,940,680],["l",780,650,800,650],["l",970,620,940,620],["l",1030,630,1060,630],["l",1030,620,1060,620],["l",1030,610,1060,610],["l",1010,160,1010,140],["r",40,30,530,260],["pl",100,180,100,170,100,160],["l",100,120,100,135],["l",100,230,100,220],["l",120,170,100,170],["l",160,240,210,240],["l",1030,660,1060,660],["l",1090,160,1090,140],["r",1020,530,90,200],["pl",980,590,980,570,880,570],["l",1050,170,1050,140],["l",1030,650,1060,650],["l",1030,640,1060,640],["pl",800,680,750,680,720,680,720,670],["pl",750,640,750,630,750,620],["pl",780,570,750,570,750,580],["pl",720,590,720,570,750,570],["l",720,615,720,630],["pl",980,615,980,640,940,640],["l",780,620,800,620],["l",210,140,160,140],["l",210,200,160,200],["l",530,110,480,110],["l",530,190,480,190],["l",530,120,480,120],["l",530,200,480,200],["l",560,600,530,600],["l",560,580,530,580],["l",560,560,530,560],["l",560,640,530,640],["l",560,680,530,680],["pl",800,220,800,210,800,200],["l",820,210,800,210],["pl",860,200,860,210,860,220],["l",880,210,860,210],["l",800,270,800,260],["l",860,270,860,260],["l",800,150,800,170],["l",860,150,860,170],["pl",60,160,60,220,100,220],["pl",60,130,60,120,100,120],["pl",430,420,430,430,450,430],["l",120,420,100,420],["l",160,420,190,420],["l",160,480,160,460],["l",100,360,100,380],["l",160,410,160,420],["l",160,360,160,370],["l",670,140,660,140],["l",670,170,660,170],["l",660,230,680,230],["l",680,200,660,200],["l",160,210,210,210],["l",160,190,210,190],["l",560,660,530,660],["l",560,620,530,620],["l",160,150,210,150],["l",160,130,210,130],["l",530,130,480,130],["l",530,230,480,230],["l",160,220,210,220],["l",160,230,210,230],["l",530,150,480,150],["l",530,220,480,220],["l",530,210,480,210],["l",160,110,210,110],["l",530,140,480,140]],"nets":[{"s":"PWM1","x":360,"y":380,"r":0,"z":10},{"s":"AD-VOUT1","x":500,"y":370,"r":0,"z":10},{"s":"AD-OVP","x":750,"y":630,"r":0,"z":10},{"s":"USB-5V","x":720,"y":680,"r":0,"z":10},{"s":"CHG-EN","x":940,"y":620,"r":0,"z":10},{"s":"CHRG","x":950,"y":680,"r":0,"z":10},{"s":"GND","x":780,"y":650,"r":0,"z":10},{"s":"LED1","x":1030,"y":660,"r":0,"z":10},{"s":"LED2","x":1030,"y":650,"r":0,"z":10},{"s":"LED3","x":1030,"y":640,"r":0,"z":10},{"s":"VCC","x":100,"y":170,"r":0,"z":10},{"s":"CLK","x":160,"y":140,"r":0,"z":10},{"s":"DAT","x":160,"y":200,"r":0,"z":10},{"s":"AD-OVP","x":490,"y":230,"r":0,"z":10},{"s":"CHRG","x":160,"y":130,"r":0,"z":10},{"s":"CHG-EN","x":160,"y":150,"r":0,"z":10},{"s":"PWM1","x":500,"y":130,"r":0,"z":10},{"s":"GND","x":160,"y":240,"r":0,"z":10},{"s":"LED1","x":160,"y":220,"r":0,"z":10},{"s":"S2","x":490,"y":210,"r":0,"z":10},{"s":"S1","x":160,"y":110,"r":0,"z":10},{"s":"LED2","x":160,"y":230,"r":0,"z":10},{"s":"LED3","x":490,"y":220,"r":0,"z":10},{"s":"0","x":1040,"y":590,"r":0,"z":10},{"s":"LED4","x":1030,"y":630,"r":0,"z":10},{"s":"LED5","x":1030,"y":620,"r":0,"z":10},{"s":"LED6","x":1030,"y":610,"r":0,"z":10},{"s":"LED4","x":490,"y":200,"r":0,"z":10},{"s":"LED5","x":500,"y":150,"r":0,"z":10},{"s":"LED6","x":500,"y":140,"r":0,"z":10},{"s":"AD-OVP","x":280,"y":60,"r":0,"z":10},{"s":"CHRG","x":400,"y":60,"r":0,"z":10},{"s":"S2","x":210,"y":60,"r":0,"z":10},{"s":"AD-VOUT1","x":460,"y":60,"r":0,"z":10},{"s":"S1","x":190,"y":60,"r":0,"z":10},{"s":"GND","x":540,"y":600,"r":0,"z":10},{"s":"CLK","x":540,"y":580,"r":0,"z":10},{"s":"DAT","x":540,"y":560,"r":0,"z":10},{"s":"RX1","x":540,"y":640,"r":0,"z":10},{"s":"S2","x":870,"y":210,"r":0,"z":10},{"s":"S1","x":810,"y":210,"r":0,"z":10},{"s":"USB-5V","x":1050,"y":150,"r":90,"z":10},{"s":"TX1","x":100,"y":420,"r":0,"z":10},{"s":"TX","x":100,"y":380,"r":270,"z":10},{"s":"RX1","x":170,"y":420,"r":0,"z":10},{"s":"RX","x":160,"y":460,"r":90,"z":10},{"s":"RX","x":500,"y":110,"r":0,"z":10},{"s":"TX","x":500,"y":120,"r":0,"z":10},{"s":"CLK","x":660,"y":230,"r":0,"z":10},{"s":"DAT","x":660,"y":200,"r":0,"z":10},{"s":"AD-VOUT1","x":490,"y":190,"r":0,"z":10},{"s":"GND","x":160,"y":210,"r":0,"z":10},{"s":"VCC","x":160,"y":190,"r":0,"z":10},{"s":"TX1","x":540,"y":660,"r":0,"z":10},{"s":"USB-5V","x":540,"y":620,"r":0,"z":10},{"s":"RX","x":350,"y":60,"r":0,"z":10},{"s":"TX","x":330,"y":60,"r":0,"z":10}],"ports":[],"pwr":[{"s":"VOUT1","x":710,"y":80,"r":90,"st":2,"z":10},{"s":"BAT+","x":650,"y":80,"r":90,"st":2,"z":10},{"s":"BAT+","x":430,"y":430,"r":180,"st":2,"z":10},{"s":"VOUT1","x":500,"y":440,"r":90,"st":2,"z":10},{"s":"GND","x":780,"y":570,"r":270,"st":4,"z":10},{"s":"BAT+","x":980,"y":640,"r":90,"st":2,"z":10},{"s":"BAT+","x":1010,"y":160,"r":90,"st":2,"z":10},{"s":"GND","x":100,"y":120,"r":270,"st":4,"z":10},{"s":"BAT+","x":100,"y":230,"r":90,"st":2,"z":10},{"s":"GND","x":680,"y":80,"r":90,"st":4,"z":10},{"s":"GND","x":1090,"y":160,"r":90,"st":4,"z":10},{"s":"BAT+","x":800,"y":270,"r":90,"st":2,"z":10},{"s":"BAT+","x":860,"y":270,"r":90,"st":2,"z":10},{"s":"GND","x":800,"y":150,"r":270,"st":4,"z":10},{"s":"GND","x":860,"y":150,"r":270,"st":4,"z":10},{"s":"BAT+","x":100,"y":460,"r":90,"st":2,"z":10},{"s":"GND","x":160,"y":360,"r":270,"st":4,"z":10},{"s":"GND","x":670,"y":140,"r":0,"st":4,"z":10},{"s":"BAT+","x":670,"y":170,"r":0,"st":2,"z":10},{"s":"VOUT1","x":560,"y":680,"r":0,"st":2,"z":10}],"texts":[["t",900,40,20,"WKP263-A"],["t",360,320,15,"输出控制"],["t",810,540,15,"充电 R=1050/I"],["t",50,40,15,"MCU"],["t",1030,540,15,"数码管"],["t",460,50,10,"4"],["t",400,50,10,"3"],["t",280,50,10,"6"],["t",190,50,10,"7"],["t",330,50,10,"0"],["t",350,50,10,"1"],["t",210,50,10,"2"]],"junct":[[100,120,4],[100,170,4],[100,220,4],[100,420,4],[160,420,4],[430,380,4],[430,430,4],[500,430,4],[750,570,4],[750,630,4],[750,680,4],[780,570,4],[800,210,4],[860,210,4],[860,570,4],[880,570,4],[980,640,4]]}]}};</script>
+<script>/* Schematic pane.
+ *
+ * Renders the project's schematic sheets as SVG underneath the BOM table, and
+ * cross-probes them against the BOM and the board: picking a BOM row highlights
+ * the matching schematic symbol (and pans to it), and picking a symbol
+ * highlights that row and the footprint on the canvas.
+ *
+ * The page is a single offline file, so the sheet geometry arrives inside
+ * pcbdata.schem (see ecad/AD10sch.js for the record layout). When there is no
+ * schematic data at all this pane hides itself and the page looks exactly as it
+ * did before - that is the common case for a board exported without a project.
+ *
+ * Coordinates: schematic space has Y pointing up, SVG has Y pointing down, so
+ * every point is mirrored about the content bounding box while it is built.
+ * Text is emitted right way up because its position is mirrored along with
+ * everything else; only arc angles need their sign flipped.
+ */
+
+var schemData = null;
+var schemSheets = [];     // [{name, svg, content: {x, y, w, h}, comps: {ref: node}}]
+var schemCurrent = -1;
+var schemRefIndex = {};   // ref -> [{sheet: i, node: <g>}]
+var schemDrag = null;
+var schemTextDrag = null;   // {index, node, x0, y0, ux, uy} while moving a label
+var schemTextMoved = false; // suppress the comp pick right after a label drag
+var schemNetHl = null;      // {svg, id} while a net is highlighted
+var schemPickQuiet = false; // one-shot: the highlight event now in flight came
+                            // from clicking the symbol itself, so the handler
+                            // must not zoom the view onto the part
+var schemPickedRef = null;  // last component picked by a click (toggle state)
+var schemCurNet = -1;       // net id of the primitive currently being rendered
+var schemReady = false;
+
+function schemEsc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function schemNum(v, def) {
+  var n = parseFloat(v);
+  if (isNaN(n)) return def;
+  return n;
+}
+
+/* -------------------------------------------------------------------------
+ * Bounding boxes in schematic units.
+ * ---------------------------------------------------------------------- */
+
+function schemPrimBox(p, box) {
+  var t = p[0];
+  var i;
+  if (t == "l") {
+    schemBoxPoint(box, p[1], p[2]);
+    schemBoxPoint(box, p[3], p[4]);
+  } else if (t == "r" || t == "s") {
+    schemBoxPoint(box, p[1], p[2]);
+    schemBoxPoint(box, p[1] + p[3], p[2] + p[4]);
+  } else if (t == "a") {
+    schemBoxPoint(box, p[1] - p[3], p[2] - p[3]);
+    schemBoxPoint(box, p[1] + p[3], p[2] + p[3]);
+  } else if (t == "e") {
+    schemBoxPoint(box, p[1] - p[3], p[2] - p[4]);
+    schemBoxPoint(box, p[1] + p[3], p[2] + p[4]);
+  } else if (t == "t") {
+    schemBoxPoint(box, p[1], p[2]);
+    schemBoxPoint(box, p[1] + p[3] * 0.6 * String(p[4]).length, p[2] + p[3]);
+  } else if (t == "p") {
+    // The pin runs from (x,y) at the body anchor OUT to the electrical end at
+    // x + len*cos(rot), y + len*sin(rot) - the same geometry the renderer
+    // draws. Rotation matters: without it left-side pins (rot 180) fall
+    // outside the grab box while right-side ones get double-covered.
+    var plen = schemNum(p[3], 0);
+    var prot = schemNum(p[4], 0) * Math.PI / 180;
+    schemBoxPoint(box, p[1], p[2]);
+    schemBoxPoint(box,
+      schemNum(p[1], 0) + plen * Math.cos(prot),
+      schemNum(p[2], 0) + plen * Math.sin(prot));
+  } else {
+    // pl / pg / b : a flat list of x, y pairs
+    for (i = 1; i + 1 < p.length; i += 2) {
+      schemBoxPoint(box, p[i], p[i + 1]);
+    }
+  }
+}
+
+function schemBoxPoint(box, x, y) {
+  x = schemNum(x, null);
+  y = schemNum(y, null);
+  if (x === null || y === null) return;
+  if (x < box.x0) box.x0 = x;
+  if (x > box.x1) box.x1 = x;
+  if (y < box.y0) box.y0 = y;
+  if (y > box.y1) box.y1 = y;
+}
+
+function schemEmptyBox() {
+  return {x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity};
+}
+
+function schemBoxIsEmpty(box) {
+  return !(box.x0 <= box.x1 && box.y0 <= box.y1);
+}
+
+function schemSheetBox(sh) {
+  var box = schemEmptyBox();
+  var i, k;
+  for (i = 0; i < sh.comps.length; i++) {
+    var comp = sh.comps[i];
+    if (comp && comp.box) {
+      schemBoxPoint(box, comp.box[0], comp.box[1]);
+      schemBoxPoint(box, comp.box[2], comp.box[3]);
+    }
+    schemBoxPoint(box, comp.x, comp.y);
+    for (k = 0; k < comp.prim.length; k++) {
+      schemPrimBox(comp.prim[k], box);
+    }
+  }
+  for (i = 0; i < sh.gfx.length; i++) {
+    schemPrimBox(sh.gfx[i], box);
+  }
+  var lists = [sh.nets, sh.ports, sh.pwr, sh.texts];
+  for (i = 0; i < lists.length; i++) {
+    for (k = 0; k < lists[i].length; k++) {
+      var o = lists[i][k];
+      schemBoxPoint(box, o.x, o.y);
+      schemBoxPoint(box, o.x + 20 * String(o.s).length, o.y + 10);
+    }
+  }
+  for (i = 0; i < sh.junct.length; i++) {
+    schemBoxPoint(box, sh.junct[i][0], sh.junct[i][1]);
+  }
+  if (schemBoxIsEmpty(box)) {
+    // Nothing readable: fall back to the declared sheet size so the pane is
+    // still a pane rather than a collapsed nothing.
+    var w = schemNum(sh.w, 0);
+    var h = schemNum(sh.h, 0);
+    if (w <= 0) w = 1000;
+    if (h <= 0) h = 800;
+    return {x0: 0, y0: 0, x1: w, y1: h};
+  }
+  return box;
+}
+
+/* -------------------------------------------------------------------------
+ * Electrical nets.
+ *
+ * Wires ("l" segments and "pl" polylines) are conductors. Two wires join when
+ * an ENDPOINT (any polyline vertex) of one lands on the other - plain
+ * crossings without a shared point stay separate nets, exactly like Altium.
+ * Pins, net labels, ports, power ports and junction dots join whichever wire
+ * they land on. Tolerance is 2 units so the 1-grid-unit gaps between pin tips
+ * and wire ends that real files contain still count as connected.
+ * ---------------------------------------------------------------------- */
+
+function schemBuildNets(sh) {
+  var TOL = 2;
+  var segs = [];
+  var gfxSeg = [];
+  var i, j, k;
+  for (i = 0; i < sh.gfx.length; i++) {
+    var g = sh.gfx[i];
+    if (g[0] == "l") {
+      gfxSeg.push(segs.length);
+      segs.push([g[1], g[2], g[3], g[4]]);
+    } else if (g[0] == "pl") {
+      gfxSeg.push(segs.length);
+      segs.push(g.slice(1));
+    } else {
+      gfxSeg.push(-1);
+    }
+  }
+  var n = segs.length;
+  var par = [];
+  for (i = 0; i < n; i++) par.push(i);
+  function find(a) {
+    while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; }
+    return a;
+  }
+  function uni(a, b) {
+    a = find(a); b = find(b);
+    if (a !== b) par[b] = a;
+  }
+  function segDist(px, py, s) {
+    var best = 1e9;
+    // kk, not k: the callers iterate k, and segDist runs mid-loop - sharing
+    // the variable made the caller restart forever on multi-segment wires.
+    for (var kk = 0; kk + 3 < s.length; kk += 2) {
+      var x1 = s[kk], y1 = s[kk + 1], x2 = s[kk + 2], y2 = s[kk + 3];
+      var dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+      var t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      var qx = px - (x1 + t * dx), qy = py - (y1 + t * dy);
+      var d = Math.sqrt(qx * qx + qy * qy);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+  for (i = 0; i < n; i++) {
+    for (j = i + 1; j < n; j++) {
+      var a = segs[i], b = segs[j], hit = false;
+      for (k = 0; k + 1 < a.length && !hit; k += 2) {
+        if (segDist(a[k], a[k + 1], b) <= TOL) hit = true;
+      }
+      for (k = 0; k + 1 < b.length && !hit; k += 2) {
+        if (segDist(b[k], b[k + 1], a) <= TOL) hit = true;
+      }
+      if (hit) uni(i, j);
+    }
+  }
+  // Extra electrical points each become a node, then merge with the wire
+  // they land on (if any). Returns the raw node id.
+  var extraPts = []; // {node, x, y} - labels, pins, ports, power, junctions
+  function attach(x, y) {
+    var node = par.length;
+    par.push(node);
+    for (var s = 0; s < n; s++) {
+      if (segDist(x, y, segs[s]) <= TOL) { uni(node, s); break; }
+    }
+    // Points also join each other directly: a net label often sits straight
+    // on a pin tip with no wire between them, and the two must land on one
+    // net or clicking the label would light up nothing but itself.
+    for (var e2 = 0; e2 < extraPts.length; e2++) {
+      var pdx = x - extraPts[e2].x, pdy = y - extraPts[e2].y;
+      if (pdx * pdx + pdy * pdy <= TOL * TOL) uni(node, extraPts[e2].node);
+    }
+    extraPts.push({node: node, x: x, y: y});
+    return node;
+  }
+
+  var junctNode = [], netsNode = [], portsNode = [], pwrNode = [], pinNode = [];
+  for (i = 0; i < sh.junct.length; i++) {
+    junctNode.push(attach(sh.junct[i][0], sh.junct[i][1]));
+  }
+  for (i = 0; i < sh.nets.length; i++) {
+    netsNode.push(attach(sh.nets[i].x, sh.nets[i].y));
+  }
+  for (i = 0; i < sh.ports.length; i++) {
+    portsNode.push(attach(sh.ports[i].x, sh.ports[i].y));
+  }
+  for (i = 0; i < sh.pwr.length; i++) {
+    pwrNode.push(attach(sh.pwr[i].x, sh.pwr[i].y));
+  }
+  for (i = 0; i < sh.comps.length; i++) {
+    var comp = sh.comps[i], arr = [];
+    for (j = 0; j < comp.prim.length; j++) {
+      var p = comp.prim[j];
+      if (p[0] !== "p") { arr.push(-1); continue; }
+      var rot = schemNum(p[4], 0) * Math.PI / 180;
+      arr.push(attach(schemNum(p[1], 0) + schemNum(p[3], 0) * Math.cos(rot),
+        schemNum(p[2], 0) + schemNum(p[3], 0) * Math.sin(rot)));
+    }
+    pinNode.push(arr);
+  }
+  // Same-name net labels, ports and power ports are ONE net even when no
+  // wire joins them - Altium's global net-name semantics. A sheet with two
+  // "VCC" labels on separate stubs must light both up, and the loose CHRG
+  // label across the sheet belongs with the wired CHRG net.
+  var byName = {};
+  function nameUnion(list, nodes) {
+    for (var i2 = 0; i2 < list.length; i2++) {
+      var s = list[i2] && list[i2].s;
+      if (!s) continue;
+      if (Object.prototype.hasOwnProperty.call(byName, s)) {
+        uni(byName[s], nodes[i2]);
+      } else {
+        byName[s] = nodes[i2];
+      }
+    }
+  }
+  nameUnion(sh.nets, netsNode);
+  nameUnion(sh.ports, portsNode);
+  nameUnion(sh.pwr, pwrNode);
+  // Compact union-find roots into dense net ids.
+  var ids = {}, next = 0;
+  function nid(node) {
+    if (node < 0) return -1;
+    var r = find(node);
+    if (!Object.prototype.hasOwnProperty.call(ids, r)) ids[r] = next++;
+    return ids[r];
+  }
+  var wireNet = [];
+  for (i = 0; i < sh.gfx.length; i++) {
+    wireNet.push(gfxSeg[i] >= 0 ? nid(gfxSeg[i]) : -1);
+  }
+  var junctNet = [], netsNet = [], portsNet = [], pwrNet = [];
+  for (i = 0; i < junctNode.length; i++) junctNet.push(nid(junctNode[i]));
+  for (i = 0; i < netsNode.length; i++) netsNet.push(nid(netsNode[i]));
+  for (i = 0; i < portsNode.length; i++) portsNet.push(nid(portsNode[i]));
+  for (i = 0; i < pwrNode.length; i++) pwrNet.push(nid(pwrNode[i]));
+  var pinNet = [];
+  for (i = 0; i < pinNode.length; i++) {
+    var row = [];
+    for (j = 0; j < pinNode[i].length; j++) row.push(nid(pinNode[i][j]));
+    pinNet.push(row);
+  }
+  return {wire: wireNet, junct: junctNet, nets: netsNet,
+    ports: portsNet, pwr: pwrNet, pin: pinNet, count: next};
+}
+
+/* -------------------------------------------------------------------------
+ * SVG building.
+ * ---------------------------------------------------------------------- */
+
+/* Browsers clamp font-size in local SVG coordinates (zh-CN builds default to
+ * a 10-12px floor): small text blown up ~4x at fit-to-page zoom was the
+ * "exported labels overlap" bug. Font size is therefore emitted
+ * 1/SCHEM_TEXT_SCALE times larger and undone by a scale() transform, which
+ * the clamp never sees - the visual size stays exactly the file's. */
+var SCHEM_TEXT_SCALE = 0.1;
+
+function schemTextOpen(cls, tx, ty, size, rot, extra) {
+  var tr = "translate(" + tx + "," + ty + ")";
+  if (rot) tr += " rotate(" + (-rot) + ")";
+  tr += " scale(" + SCHEM_TEXT_SCALE + ")";
+  return '<text class="' + cls + '" transform="' + tr + '" x="0" y="0"' +
+    ' font-size="' + (size / SCHEM_TEXT_SCALE) + '"' + (extra || "") + ">";
+}
+function schemTextGetPos(node) {
+  var m = (node.getAttribute("transform") || "")
+    .match(/translate\(([-\d.eE]+)[, ]([-\d.eE]+)\)/);
+  return m ? [parseFloat(m[1]), parseFloat(m[2])] : [0, 0];
+}
+function schemTextSetPos(node, tx, ty) {
+  var tr = (node.getAttribute("transform") || "")
+    .replace(/translate\([^)]*\)/, "translate(" + tx + "," + ty + ")");
+  node.setAttribute("transform", tr);
+}
+
+function schemPrimSvg(p, sx, sy) {
+  var t = p[0];
+  var i, pts, d;
+  if (t == "l") {
+    var net = schemCurNet >= 0 ? ' data-net="' + schemCurNet + '"' : "";
+    return '<line class="sch-line"' + net + ' x1="' + sx(p[1]) + '" y1="' + sy(p[2]) +
+      '" x2="' + sx(p[3]) + '" y2="' + sy(p[4]) + '"/>';
+  }
+  if (t == "r" || t == "s") {
+    var cls = t == "s" ? "sch-sheetsym" : "sch-rect";
+    var out = '<rect class="' + cls + '" x="' + sx(p[1]) + '" y="' +
+      sy(p[2] + p[4]) + '" width="' + Math.abs(p[3]) + '" height="' +
+      Math.abs(p[4]) + '"/>';
+    if (t == "s") {
+      var label = p[5] || p[6] || "";
+      if (label) {
+        out += schemTextOpen("sch-sheetsym-text", sx(p[1] + 2),
+            sy(p[2] + p[4] - 2), Math.max(8, Math.abs(p[4]) * 0.12), 0, "") +
+          schemEsc(label) + "</text>";
+      }
+    }
+    return out;
+  }
+  if (t == "a") {
+    var a1 = schemNum(p[4], 0) * Math.PI / 180;
+    var a2 = schemNum(p[5], 0) * Math.PI / 180;
+    var r = Math.abs(p[3]);
+    var cx = sx(p[1]);
+    var cy = sy(p[2]);
+    // Y is mirrored, so the sweep direction flips with it.
+    var x1 = cx + r * Math.cos(a1);
+    var y1 = cy - r * Math.sin(a1);
+    var x2 = cx + r * Math.cos(a2);
+    var y2 = cy - r * Math.sin(a2);
+    if (Math.abs(a2 - a1) < 0.001) {
+      d = "M " + (cx - r) + " " + cy + " a " + r + " " + r + " 0 1 0 " +
+        (2 * r) + " 0 a " + r + " " + r + " 0 1 0 " + (-2 * r) + " 0";
+      return '<path class="sch-arc" d="' + d + '"/>';
+    }
+    var da = a2 - a1;
+    if (da < 0) da += 2 * Math.PI;
+    var large = da > Math.PI ? 1 : 0;
+    var sweep = 0;
+    d = "M " + x1 + " " + y1 + " A " + r + " " + r + " 0 " + large + " " +
+      sweep + " " + x2 + " " + y2;
+    return '<path class="sch-arc" d="' + d + '"/>';
+  }
+  if (t == "e") {
+    return '<ellipse class="sch-ellipse" cx="' + sx(p[1]) + '" cy="' +
+      sy(p[2]) + '" rx="' + Math.abs(p[3]) + '" ry="' + Math.abs(p[4]) + '"/>';
+  }
+  if (t == "t") {
+    // Designators ("d") and parameters ("p") carry a drag handle: they are
+    // labels, not part of the symbol, and the user may reposition them.
+    var lblScale = 1;
+    var mv = "";
+    if (p.length > 5 && (p[5] == "d" || p[5] == "p")) {
+      // Designators and parameters also read 30% smaller than the file's
+      // point size (user preference, matches the net-name shrink).
+      lblScale = 0.7;
+      mv = ' data-mv="1" data-kind="' + p[5] + '" data-txt="' +
+        schemEsc(p[4]) + '"';
+    }
+    var tx = sx(p[1]), ty = sy(p[2]);
+    if (mv) mv += ' data-ox="' + tx + '" data-oy="' + ty + '"';
+    return schemTextOpen("sch-text", tx, ty,
+        Math.max(3, Math.abs(p[3]) * lblScale), 0, mv) +
+      schemEsc(p[4]) + "</text>";
+  }
+  if (t == "p") {
+    var px = schemNum(p[1], 0);
+    var py = schemNum(p[2], 0);
+    var len = schemNum(p[3], 0);
+    var rot = schemNum(p[4], 0) * Math.PI / 180;
+    // The pin runs from the body anchor (Location) OUT to the electrical end
+    // at Location + len*dir - the connectivity test proved the far end is
+    // what lands on wires. Y is mirrored; rot reads as -rot on screen.
+    var dx = Math.cos(rot), dy = Math.sin(rot);
+    var ex = px + len * dx;
+    var ey = py + len * dy;
+    var pnet = schemCurNet >= 0 ? ' data-net="' + schemCurNet + '"' : "";
+    var out2 = '<line class="sch-pin"' + pnet + ' x1="' + sx(px) + '" y1="' + sy(py) +
+      '" x2="' + sx(ex) + '" y2="' + sy(ey) + '"/>';
+    var numS = p.length > 5 && p[5] !== undefined ? String(p[5]) : "";
+    var nameS = p.length > 6 && p[6] !== undefined ? String(p[6]) : "";
+    // Visibility flags (offline converter, prim slots 7/8: number/name).
+    // Absent = visible, so AD-side prims without flags keep drawing both.
+    var numVis = !(p.length > 7 && p[7] === 0);
+    var nameVis = !(p.length > 8 && p[8] === 0);
+    if ((numS && numVis) || (nameS && nameVis)) {
+      var fsz = Math.min(8, Math.max(5, Math.abs(len) * 0.45));
+      var off = fsz * 0.3 + 0.6;
+      var mx = px + len * 0.5 * dx, my = py + len * 0.5 * dy;
+      function pinText(x, y, s, anchor) {
+        return schemTextOpen("sch-pin-num", sx(x), sy(y), fsz, 0,
+            ' text-anchor="' + anchor + '"') +
+          schemEsc(s) + "</text>";
+      }
+      if (Math.abs(dy) > 0.7) {
+        // vertical pin: number beside the line midpoint; name just inside the
+        // body anchor, on the side AWAY from the wire
+        if (numS && numVis) out2 += pinText(mx + off, my + fsz * 0.35, numS, "start");
+        if (nameS && nameVis) out2 += pinText(px, py + (dy > 0 ? -1.5 : fsz * 0.4),
+          nameS, "middle");
+      } else {
+        // horizontal pin: number above the line midpoint, name inside the body
+        if (numS && numVis) out2 += pinText(mx, my + off, numS, "middle");
+        if (nameS && nameVis) out2 += pinText(px - dx * 1.5, py + off,
+          nameS, dx > 0 ? "end" : "start");
+      }
+    }
+    return out2;
+  }
+  // pl / pg / b
+  pts = [];
+  for (i = 1; i + 1 < p.length; i += 2) {
+    pts.push(sx(p[i]) + "," + sy(p[i + 1]));
+  }
+  if (pts.length < 2) return "";
+  var plnet = schemCurNet >= 0 ? ' data-net="' + schemCurNet + '"' : "";
+  if (t == "pg") {
+    return '<polygon class="sch-poly"' + plnet + ' points="' + pts.join(" ") + '"/>';
+  }
+  return '<polyline class="sch-poly"' + plnet + ' points="' + pts.join(" ") + '"/>';
+}
+
+function schemBuildSheet(index) {
+  var sh = schemData.sheets[index];
+  var box = schemSheetBox(sh);
+  var x0 = box.x0;
+  var y1 = box.y1;
+  var sx = function(x) { return schemNum(x, 0) - x0; };
+  var sy = function(y) { return y1 - schemNum(y, 0); };
+  var pad = Math.max((box.x1 - box.x0), (box.y1 - box.y0)) * 0.02;
+  if (pad <= 0) pad = 10;
+
+  var content = {
+    x: -pad,
+    y: -pad,
+    w: (box.x1 - box.x0) + 2 * pad,
+    h: (box.y1 - box.y0) + 2 * pad
+  };
+
+  var parts = [];
+  parts.push('<svg class="sch-svg" xmlns="http://www.w3.org/2000/svg" ' +
+    'preserveAspectRatio="xMidYMid meet" viewBox="' +
+    content.x + " " + content.y + " " + content.w + " " + content.h + '">');
+
+  // Sheet area as a faint guide, when the reader managed to get it.
+  if (schemNum(sh.w, 0) > 0 && schemNum(sh.h, 0) > 0) {
+    parts.push('<rect class="sch-sheetbg" x="' + sx(0) + '" y="' + sy(sh.h) +
+      '" width="' + sh.w + '" height="' + sh.h + '"/>');
+  }
+
+  var netmap = schemBuildNets(sh);
+
+  var i, k;
+  for (i = 0; i < sh.gfx.length; i++) {
+    schemCurNet = schemNum(netmap.wire[i], -1);
+    parts.push(schemPrimSvg(sh.gfx[i], sx, sy));
+  }
+  schemCurNet = -1;
+  for (i = 0; i < sh.junct.length; i++) {
+    var j = sh.junct[i];
+    var jnet = schemNum(netmap.junct[i], -1);
+    parts.push('<circle class="sch-junction"' +
+      (jnet >= 0 ? ' data-net="' + jnet + '"' : "") +
+      ' cx="' + sx(j[0]) + '" cy="' +
+      sy(j[1]) + '" r="' + Math.max(1.5, schemNum(j[2], 4) / 2) + '"/>');
+  }
+
+  // Labels and ports are text objects; they get their own rotation so a net
+  // label written up the side of the sheet stays readable.
+  parts.push(schemTextSvg(sh.nets, sx, sy, "sch-netlabel", netmap.nets));
+  parts.push(schemTextSvg(sh.ports, sx, sy, "sch-port", netmap.ports));
+  parts.push(schemTextSvg(sh.texts, sx, sy, "sch-freetext"));
+
+  // Power ports draw a real symbol (circle / earth / bar) with the net name
+  // past its far end - text alone made them look like loose labels.
+  for (i = 0; i < sh.pwr.length; i++) {
+    parts.push(schemPowerSvg(sh.pwr[i], sx, sy, schemNum(netmap.pwr[i], -1)));
+  }
+
+  for (i = 0; i < sh.comps.length; i++) {
+    parts.push(schemComponentSvg(sh.comps[i], sx, sy, netmap.pin[i]));
+  }
+
+  parts.push("</svg>");
+
+  var holder = document.createElement("div");
+  holder.className = "sch-holder";
+  holder.style.display = index == schemCurrent ? "block" : "none";
+  holder.innerHTML = parts.join("");
+
+  var svg = holder.firstChild;
+  var entry = {
+    name: sh.name,
+    holder: holder,
+    svg: svg,
+    content: content,
+    comps: {},
+    boxes: {}
+  };
+
+  schemApplyLabelOffsets(holder, sh.name);
+
+  var nodes = holder.querySelectorAll("[data-ref]");
+  for (i = 0; i < nodes.length; i++) {
+    var ref = nodes[i].getAttribute("data-ref");
+    entry.comps[ref] = nodes[i];
+    entry.boxes[ref] = schemNodeBox(nodes[i]);
+    if (!schemRefIndex[ref]) schemRefIndex[ref] = [];
+    schemRefIndex[ref].push({sheet: index, node: nodes[i]});
+  }
+
+  schemAttachView(svg, index);
+  schemSheets[index] = entry;
+  return holder;
+}
+
+// Orientation semantics confirmed against the sample file: the stored angle is
+// the standard math angle of the stub, 0 = +x, 90 = +y (up), 270 = down. The
+// stub must point AWAY from the wire, which is how every power port in the
+// sample lands (verified by a wire-proximity survey, see .workbuddy/schtest.js).
+var SCHEM_PWR_DIRS = {"0": [1, 0], "90": [0, 1], "180": [-1, 0], "270": [0, -1]};
+
+// Symbol styles seen in the wild: 2 = circle ("power"), 4 = power ground
+// (stem + crossbar + three descending lines), 5 = signal ground (two lines),
+// anything else falls back to a plain bar. Style 0/1 unknown -> bar too.
+function schemPowerSvg(o, sx, sy, netId) {
+  var st = schemNum(o.st, 0);
+  var d = SCHEM_PWR_DIRS[String(schemNum(o.r, 0))] || [0, 1];
+  var x = schemNum(o.x, 0);
+  var y = schemNum(o.y, 0);
+  var px = -d[1], py = d[0]; // perpendicular
+  function ln(ax, ay, bx, by) {
+    return '<line class="sch-power-sym" x1="' + sx(ax) + '" y1="' + sy(ay) +
+      '" x2="' + sx(bx) + '" y2="' + sy(by) + '"/>';
+  }
+  var out = "";
+  var tip = 6; // where the symbol body ends, past the connection point
+  if (st == 2 || st == 3) {
+    out += ln(x, y, x + d[0] * 3, y + d[1] * 3);
+    out += '<circle class="sch-power-sym" cx="' + sx(x + d[0] * 6.5) +
+      '" cy="' + sy(y + d[1] * 6.5) + '" r="3.5"/>';
+    tip = 10.5;
+  } else if (st == 4 || st == 5) {
+    out += ln(x, y, x + d[0] * 6, y + d[1] * 6);
+    var bx = x + d[0] * 6, by = y + d[1] * 6;
+    out += ln(bx - px * 5, by - py * 5, bx + px * 5, by + py * 5);
+    var n = st == 4 ? 3 : 2;
+    for (var i = 1; i <= n; i++) {
+      var fx = bx + d[0] * i * 2.4, fy = by + d[1] * i * 2.4;
+      var hw = 5 - i * 1.4;
+      out += ln(fx - px * hw, fy - py * hw, fx + px * hw, fy + py * hw);
+    }
+    tip = 6 + n * 2.4;
+  } else {
+    out += ln(x, y, x + d[0] * 6, y + d[1] * 6);
+    out += ln(x + d[0] * 6 - px * 5, y + d[1] * 6 - py * 5,
+              x + d[0] * 6 + px * 5, y + d[1] * 6 + py * 5);
+    tip = 6;
+  }
+  // Net name past the far end of the symbol, like Altium places it. The base
+  // line offset differs per direction so the text clears the last symbol line.
+  if (o.s && o.s !== "") {
+    var fsz0 = Math.max(4, schemNum(o.z, 8));
+    var tx = x + d[0] * (tip + 2), ty = y + d[1] * (tip + 2);
+    var anchor = Math.abs(d[1]) > 0.7 ? "middle" : (d[0] > 0 ? "start" : "end");
+    var vy;
+    if (Math.abs(d[1]) > 0.7) {
+      vy = d[1] > 0 ? ty + fsz0 * 0.8 : ty - 1.5; // above / below the symbol
+    } else {
+      vy = ty + fsz0 * 0.35;
+    }
+    out += '<text class="sch-power" x="' + sx(tx) + '" y="' + sy(vy) +
+      '" font-size="' + fsz0 + '" text-anchor="' + anchor + '">' +
+      schemEsc(o.s) + "</text>";
+  }
+  if (netId >= 0) {
+    // One wrapper carries the net id, so clicking any part of the symbol
+    // (lines or name) highlights the net.
+    return '<g data-net="' + netId + '">' + out + "</g>";
+  }
+  return out;
+}
+
+function schemTextSvg(list, sx, sy, cls, ids) {
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var o = list[i];
+    // Two item shapes share this helper: plain text arrays
+    // ["t", x, y, size, s] (free texts, component primitives) and objects
+    // {s, x, y, r, z} (net labels, ports).
+    var tx, ty, s, rot, size;
+    if (o && o.length) {
+      tx = o[1]; ty = o[2]; size = o[3]; s = o[4]; rot = 0;
+    } else {
+      tx = o.x; ty = o.y; s = o.s; rot = schemNum(o.r, 0);
+      size = Math.max(4, schemNum(o.z, 10));
+      // Net names read smaller than the sheet default (user asked -30%).
+      if (cls == "sch-netlabel" || cls == "sch-port") {
+        size = Math.max(3, size * 0.7);
+      }
+    }
+    if (s === undefined || s === "") continue;
+    // Net names / ports sit ON a wire: the baseline lands on the conductor
+    // and the stroke cuts through the glyphs. Lift the text along its own
+    // "up" (perpendicular to the run, valid for rotated labels too).
+    if (cls == "sch-netlabel" || cls == "sch-port") {
+      var lift = size * 0.2 + 0.6; // just clear the 2-unit stroke, no more
+      tx -= lift * Math.sin(rot * Math.PI / 180);
+      ty += lift * Math.cos(rot * Math.PI / 180);
+    }
+    var net = ids && ids[i] >= 0 ? ' data-net="' + ids[i] + '"' : "";
+    out.push(schemTextOpen(cls, sx(tx), sy(ty), size, rot, net) +
+      schemEsc(s) + "</text>");
+  }
+  return out.join("");
+}
+
+function schemComponentSvg(comp, sx, sy, pinNets) {
+  var box = schemEmptyBox();
+  var i;
+  // The grab/highlight box covers the symbol GRAPHICS only - designators and
+  // parameters are separately movable labels and must not be boxed in.
+  for (i = 0; i < comp.prim.length; i++) {
+    if (comp.prim[i][0] == "t") continue;
+    schemPrimBox(comp.prim[i], box);
+  }
+  if (schemBoxIsEmpty(box)) {
+    schemBoxPoint(box, comp.x, comp.y);
+    schemBoxPoint(box, comp.x + 60, comp.y + 40);
+  }
+  // A symbol sits inside its own box; pad it so a thin outline still has
+  // something to grab.
+  var gx = box.x0 - 2;
+  var gy = box.y0 - 2;
+  var gw = (box.x1 - box.x0) + 4;
+  var gh = (box.y1 - box.y0) + 4;
+
+  var parts = [];
+  parts.push('<g class="sch-comp" data-ref="' + schemEsc(comp.ref) + '">');
+  parts.push("<title>" + schemEsc(comp.ref +
+    (comp.val ? "  " + comp.val : "")) + "</title>");
+  parts.push('<rect class="sch-hit" x="' + sx(gx) + '" y="' + sy(gy + gh) +
+    '" width="' + gw + '" height="' + gh + '"/>');
+  for (i = 0; i < comp.prim.length; i++) {
+    schemCurNet = pinNets ? schemNum(pinNets[i], -1) : -1;
+    parts.push(schemPrimSvg(comp.prim[i], sx, sy));
+  }
+  schemCurNet = -1;
+  // Only draw our own label when the sheet had no designator text of its own,
+  // otherwise every symbol ends up with the reference twice.
+  if (!schemHasDesignatorText(comp)) {
+    parts.push(schemTextOpen("sch-ref", sx(box.x0), sy(box.y1 + 4),
+        Math.max(8, gh * 0.16), 0, "") + schemEsc(comp.ref) + "</text>");
+  }
+  parts.push("</g>");
+  return parts.join("");
+}
+
+function schemHasDesignatorText(comp) {
+  for (var i = 0; i < comp.prim.length; i++) {
+    if (comp.prim[i][0] == "t" && comp.prim[i][4] == comp.ref) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function schemNodeBox(node) {
+  var hit = node.querySelector(".sch-hit");
+  if (!hit) return null;
+  return {
+    x: parseFloat(hit.getAttribute("x")),
+    y: parseFloat(hit.getAttribute("y")),
+    w: parseFloat(hit.getAttribute("width")),
+    h: parseFloat(hit.getAttribute("height"))
+  };
+}
+
+/* -------------------------------------------------------------------------
+ * Pan and zoom.
+ * ---------------------------------------------------------------------- */
+
+function schemAttachView(svg, index) {
+  var vb = {x: 0, y: 0, w: 0, h: 0};
+  svg.__schemVb = vb;
+  schemFit(index);
+
+  svg.addEventListener("wheel", function(e) {
+    e.preventDefault();
+    var rect = svg.getBoundingClientRect();
+    var px = e.clientX - rect.left;
+    var py = e.clientY - rect.top;
+    var factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    schemZoom(index, px, py, factor, rect);
+  }, {passive: false});
+
+  svg.addEventListener("mousedown", function(e) {
+    if (e.button !== 0) return;
+    // A designator/parameter label grabs its own drag, not the pan.
+    var lab = e.target.closest ? e.target.closest("[data-mv]") : null;
+    if (lab) {
+      schemTextDrag = {
+        index: index,
+        node: lab,
+        x: e.clientX,
+        y: e.clientY,
+        ux: parseFloat(lab.getAttribute("data-ox")),
+        uy: parseFloat(lab.getAttribute("data-oy"))
+      };
+      return;
+    }
+    schemDrag = {
+      index: index,
+      x: e.clientX,
+      y: e.clientY,
+      moved: false,
+      vb: {x: vb.x, y: vb.y}
+    };
+  });
+
+  svg.addEventListener("dblclick", function(e) {
+    // Fit-to-sheet is a background gesture: double-clicking a net label or
+    // component used to bubble up here and yank the user's zoom away.
+    var tgt = e.target;
+    if (tgt && tgt !== svg && tgt.closest &&
+        (tgt.closest("[data-net]") || tgt.closest(".sch-comp"))) return;
+    schemFit(index);
+  });
+
+  svg.addEventListener("click", function(e) {
+    if (schemDrag && schemDrag.moved) return;
+    if (schemTextMoved) { schemTextMoved = false; return; }
+    // Clicking a wire, pin, net label, port or power symbol highlights the
+    // whole electrical net; clicking again (or empty space) clears it.
+    var t = e.target.closest ? e.target.closest("[data-net]") : null;
+    if (t) {
+      schemToggleNetHl(svg, t.getAttribute("data-net"));
+      return;
+    }
+    schemClearNetHl();
+    var g = e.target.closest ? e.target.closest(".sch-comp") : null;
+    // Clicking the picked part a second time, or clicking blank space, clears
+    // the selection - in both page flavors. On the main ibom page the
+    // selection lives on the BOM side too (currentHighlightedRowId), so the
+    // shared clear routine drops the row highlight before the schematic's own.
+    var solo = !(typeof refToHandler == "object" && refToHandler);
+    if (!g) {
+      if (!solo && typeof clearHighlightedFootprints == "function") {
+        clearHighlightedFootprints();
+      }
+      schemHighlight(null);
+      schemPickedRef = null;
+      return;
+    }
+    var ref = g.getAttribute("data-ref");
+    if (solo) {
+      if (schemPickedRef === ref) {
+        schemPickedRef = null;
+        schemHighlight(null);
+        return;
+      }
+      schemPickedRef = ref;
+    }
+    schemPick(ref);
+  });
+}
+
+function schemClearNetHl() {
+  if (!schemNetHl) return;
+  var els = schemNetHl.svg.querySelectorAll("[data-net]");
+  for (var i = 0; i < els.length; i++) {
+    els[i].classList.remove("sch-net-hl");
+  }
+  schemNetHl = null;
+}
+
+function schemToggleNetHl(svg, id) {
+  if (schemNetHl && schemNetHl.svg === svg && schemNetHl.id === id) {
+    schemClearNetHl();
+    return;
+  }
+  schemClearNetHl();
+  var els = svg.querySelectorAll("[data-net]");
+  for (var i = 0; i < els.length; i++) {
+    if (els[i].getAttribute("data-net") === id) {
+      els[i].classList.add("sch-net-hl");
+    }
+  }
+  schemNetHl = {svg: svg, id: id};
+}
+
+document.addEventListener("mousemove", function(e) {
+  if (schemTextDrag) {
+    var tentry = schemSheets[schemTextDrag.index];
+    if (!tentry) return;
+    var trect = tentry.svg.getBoundingClientRect();
+    if (trect.width <= 0) return;
+    var tvb = tentry.svg.__schemVb;
+    // preserveAspectRatio meet: one uniform scale, centered letterbox.
+    var tsc = Math.min(trect.width / tvb.w, trect.height / tvb.h);
+    // Text position lives in the transform's leading translate (screen-space
+    // sx/sy applied at build time), so both axes track the mouse 1:1.
+    var nx = schemTextDrag.ux + (e.clientX - schemTextDrag.x) / tsc;
+    var ny = schemTextDrag.uy + (e.clientY - schemTextDrag.y) / tsc;
+    schemTextSetPos(schemTextDrag.node, nx, ny);
+    schemTextMoved = true;
+    return;
+  }
+  if (!schemDrag) return;
+  var entry = schemSheets[schemDrag.index];
+  if (!entry) return;
+  var rect = entry.svg.getBoundingClientRect();
+  if (rect.width <= 0) return;
+  var dx = e.clientX - schemDrag.x;
+  var dy = e.clientY - schemDrag.y;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) schemDrag.moved = true;
+  var vb = entry.svg.__schemVb;
+  var scale = vb.w / rect.width;
+  vb.x = schemDrag.vb.x - dx * scale;
+  vb.y = schemDrag.vb.y - dy * scale;
+  schemApplyViewBox(schemDrag.index);
+});
+
+document.addEventListener("mouseup", function() {
+  if (schemTextDrag) {
+    var node = schemTextDrag.node;
+    // Persist the offset from the built position, keyed by sheet|ref|text.
+    try {
+      var pos = schemTextGetPos(node);
+      var dx = pos[0] - parseFloat(node.getAttribute("data-ox"));
+      var dy = pos[1] - parseFloat(node.getAttribute("data-oy"));
+      var g = node.closest("[data-ref]");
+      var key = "schlbl2:" + (schemSheets[schemTextDrag.index] ?
+        schemSheets[schemTextDrag.index].name : "?") + "|" +
+        (g ? g.getAttribute("data-ref") : "?") + "|" +
+        (node.getAttribute("data-txt") || "");
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        window.localStorage.setItem(key, dx + "," + dy);
+      } else {
+        window.localStorage.removeItem(key);
+      }
+    } catch (err) { /* file:// or private mode: offsets stay for this view only */ }
+    schemTextDrag = null;
+    return;
+  }
+  schemDrag = null;
+});
+
+// Re-apply saved label offsets after a sheet is (re)built.
+function schemApplyLabelOffsets(holder, sheetName) {
+  var labels;
+  try { labels = holder.querySelectorAll("[data-mv]"); } catch (e) { return; }
+  for (var i = 0; labels && i < labels.length; i++) {
+    var el = labels[i];
+    var g = el.closest ? el.closest("[data-ref]") : null;
+    // "schlbl2" - v1 keys were poisoned by an early bug that stored absolute
+    // positions instead of deltas; ignore everything saved under v1.
+    var key = "schlbl2:" + (sheetName || "?") + "|" +
+      (g ? g.getAttribute("data-ref") : "?") + "|" +
+      (el.getAttribute("data-txt") || "");
+    var saved;
+    try { saved = window.localStorage.getItem(key); } catch (err) { saved = null; }
+    if (saved) {
+      var c = saved.split(",");
+      if (c.length === 2) {
+        var dx = parseFloat(c[0]), dy = parseFloat(c[1]);
+        if (!isNaN(dx) && !isNaN(dy)) {
+          var pos = schemTextGetPos(el);
+          schemTextSetPos(el, pos[0] + dx, pos[1] + dy);
+        }
+      }
+    }
+    // The drag anchor must be the position AFTER replaying saved offsets, so
+    // mouseup stores a true delta and rebuilds never compound it.
+    var np = schemTextGetPos(el);
+    el.setAttribute("data-ox", np[0]);
+    el.setAttribute("data-oy", np[1]);
+  }
+}
+
+function schemZoom(index, px, py, factor, rect) {
+  var entry = schemSheets[index];
+  if (!entry) return;
+  var vb = entry.svg.__schemVb;
+  var minW = entry.content.w * 0.02;
+  var maxW = entry.content.w * 6;
+  var nw = vb.w * factor;
+  if (nw < minW) nw = minW;
+  if (nw > maxW) nw = maxW;
+  var real = nw / vb.w;
+  var ux = vb.x + (px / rect.width) * vb.w;
+  var uy = vb.y + (py / rect.height) * vb.h;
+  var nh = vb.h * real;
+  vb.x = ux - (ux - vb.x) * real;
+  vb.y = uy - (uy - vb.y) * real;
+  vb.w = nw;
+  vb.h = nh;
+  schemApplyViewBox(index);
+}
+
+function schemApplyViewBox(index) {
+  var entry = schemSheets[index];
+  if (!entry) return;
+  var vb = entry.svg.__schemVb;
+  entry.svg.setAttribute("viewBox",
+    vb.x + " " + vb.y + " " + vb.w + " " + vb.h);
+}
+
+function schemFit(index) {
+  var entry = schemSheets[index];
+  if (!entry) return;
+  var vb = entry.svg.__schemVb;
+  vb.x = entry.content.x;
+  vb.y = entry.content.y;
+  vb.w = entry.content.w;
+  vb.h = entry.content.h;
+  schemApplyViewBox(index);
+}
+
+/* -------------------------------------------------------------------------
+ * Sheet selection.
+ * ---------------------------------------------------------------------- */
+
+function schemBuildBar() {
+  var bar = document.getElementById("schembar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  if (schemData.sheets.length < 2) {
+    bar.style.display = "none";
+    return;
+  }
+  bar.style.display = "";
+  for (var i = 0; i < schemData.sheets.length; i++) {
+    var b = document.createElement("button");
+    b.className = "sch-tab";
+    b.textContent = schemData.sheets[i].name;
+    b.setAttribute("data-index", i);
+    b.onclick = schemTabHandler(i);
+    bar.appendChild(b);
+  }
+}
+
+function schemTabHandler(i) {
+  return function() {
+    schemShowSheet(i);
+  };
+}
+
+function schemShowSheet(index) {
+  if (index < 0 || index >= schemSheets.length) return;
+  schemCurrent = index;
+  for (var i = 0; i < schemSheets.length; i++) {
+    if (schemSheets[i]) {
+      schemSheets[i].holder.style.display = i == index ? "block" : "none";
+    }
+  }
+  var tabs = document.querySelectorAll("#schembar .sch-tab");
+  for (i = 0; i < tabs.length; i++) {
+    if (parseInt(tabs[i].getAttribute("data-index"), 10) == index) {
+      tabs[i].classList.add("depressed");
+    } else {
+      tabs[i].classList.remove("depressed");
+    }
+  }
+  schemFit(index);
+}
+
+/* -------------------------------------------------------------------------
+ * Cross probing.
+ * ---------------------------------------------------------------------- */
+
+function schemHighlight(refs) {
+  var i, k;
+  for (i = 0; i < schemSheets.length; i++) {
+    if (!schemSheets[i]) continue;
+    for (k in schemSheets[i].comps) {
+      if (Object.prototype.hasOwnProperty.call(schemSheets[i].comps, k)) {
+        schemSheets[i].comps[k].classList.remove("sch-hl");
+      }
+    }
+  }
+  if (!refs || refs.length == 0) return;
+  for (i = 0; i < refs.length; i++) {
+    var list = schemRefIndex[refs[i]];
+    if (!list) continue;
+    for (k = 0; k < list.length; k++) {
+      list[k].node.classList.add("sch-hl");
+    }
+  }
+}
+
+function schemFocus(ref, zoomIn) {
+  var list = schemRefIndex[ref];
+  if (!list || list.length == 0) return false;
+  var target = list[0];
+  if (target.sheet != schemCurrent) {
+    schemShowSheet(target.sheet);
+  }
+  var entry = schemSheets[target.sheet];
+  var b = entry.boxes[ref];
+  if (!b) return true;
+  var vb = entry.svg.__schemVb;
+  if (zoomIn) {
+    // Frame the symbol: at least 30 units of context, at most the whole sheet.
+    var w = Math.max(b.w * 8, 30);
+    var h = Math.max(b.h * 8, 30);
+    if (w > entry.content.w) w = entry.content.w;
+    if (h > entry.content.h) h = entry.content.h;
+    vb.w = w;
+    vb.h = h;
+  }
+  vb.x = b.x + b.w / 2 - vb.w / 2;
+  vb.y = b.y + b.h / 2 - vb.h / 2;
+  schemApplyViewBox(target.sheet);
+  return true;
+}
+
+function schemOnHighlight(args) {
+  if (!schemReady) return;
+  if (!args || !args.refs || args.refs.length == 0) {
+    schemHighlight([]);
+    return;
+  }
+  var refs = [];
+  for (var i = 0; i < args.refs.length; i++) {
+    refs.push(args.refs[i][0]);
+  }
+  schemHighlight(refs);
+  // A schematic-side click already has the part under the cursor; re-centering
+  // (let alone zooming) would yank the view for nothing. BOM-row clicks keep
+  // the zoom-to-part behavior.
+  if (!schemPickQuiet) schemFocus(refs[0], true);
+}
+
+/* Symbol -> BOM row -> board. refToHandler is built by ibom.js while the BOM
+ * table is populated; a reference that is not in the table (a No BOM part, or
+ * one filtered out) simply highlights on the sheet alone. */
+function schemPick(ref) {
+  if (!ref) return;
+  if (typeof refToHandler == "object" && refToHandler &&
+      refToHandler[ref]) {
+    // EventHandler.fire is synchronous, so this one-shot flag is consumed by
+    // schemOnHighlight within the same tick: highlight yes, auto-zoom no.
+    // BOM-row clicks never pass through here and keep their zoom-to-part.
+    schemPickQuiet = true;
+    try {
+      refToHandler[ref]();
+    } finally {
+      schemPickQuiet = false;
+    }
+  } else {
+    schemHighlight([ref]);
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Left panel view switch: "bom" shows the BOM table, "schem" shows the
+ * schematic. The two are mutually exclusive, so a missing or unread schematic
+ * can never push the BOM down the way the old 45% split did. The schematic SVG
+ * is built lazily on the first switch so it measures against a visible
+ * container instead of a display:none box.
+ * ---------------------------------------------------------------------- */
+
+var schemHasData = false;
+var schemBuilt = false;
+
+function changeLeftPane(which) {
+  var isSchem = (which == "schem");
+  var bomdiv = document.getElementById("bomdiv");
+  if (bomdiv) {
+    if (isSchem) bomdiv.classList.add("show-schem");
+    else bomdiv.classList.remove("show-schem");
+  }
+  // Visibility goes through inline styles, not a CSS class: the pane used to
+  // carry a "display: none" attribute that outranked the stylesheet, so the
+  // switch appeared to do nothing and left the panel blank.
+  var wrap = document.getElementById("bomwrap");
+  if (wrap) wrap.style.display = isSchem ? "none" : "";
+  var sdiv = document.getElementById("schemdiv");
+  if (sdiv) sdiv.style.display = isSchem ? "flex" : "none";
+  var bBtn = document.getElementById("left-bom-btn");
+  var sBtn = document.getElementById("left-schem-btn");
+  if (bBtn) {
+    if (!isSchem) bBtn.classList.add("depressed");
+    else bBtn.classList.remove("depressed");
+  }
+  if (sBtn) {
+    if (isSchem) sBtn.classList.add("depressed");
+    else sBtn.classList.remove("depressed");
+  }
+  if (isSchem) ensureSchem();
+}
+
+/* The reader's own notes. Always ends with the AD-side build stamp, so the
+ * first question ("did the script that wrote this page even have a schematic
+ * reader?") is answerable from the page itself. */
+function schemDiagLines() {
+  var lines = [];
+  var notes = (typeof pcbdata != "undefined" && pcbdata && pcbdata.schemdiag) ?
+    pcbdata.schemdiag : null;
+  if (notes && notes.length) {
+    for (var i = 0; i < notes.length; i++) {
+      lines.push(String(notes[i]));
+    }
+  }
+  var stamp = (typeof pcbdata != "undefined" && pcbdata) ? pcbdata.adbuild : null;
+  lines.push("");
+  lines.push("AD 脚本标记: " + (stamp ? stamp : "(无)"));
+  return lines;
+}
+
+/* Why the pane has nothing to draw. Three distinct causes, and they need
+ * different actions from the user, so they must not share one message:
+ *   1. the reader ran and found nothing -> its notes are the useful part;
+ *   2. the page carries no reader notes AND no build stamp -> the AD session
+ *      that wrote it was still running an older compiled script;
+ *   3. the reader ran, but produced no data (should not happen - kept so the
+ *      pane never falls back to silence). */
+function schemExplainEmpty() {
+  var notes = (typeof pcbdata != "undefined" && pcbdata && pcbdata.schemdiag) ?
+    pcbdata.schemdiag : null;
+  var stamp = (typeof pcbdata != "undefined" && pcbdata) ? pcbdata.adbuild : null;
+  if (notes && notes.length) {
+    return "未读取到原理图。工程里没有可用的 .SchDoc，或者这台 AD 不允许脚本读取原理图。\n" +
+      "下面是读取过程的记录（也可悬停此行查看），可复制后回传。";
+  }
+  if (!stamp) {
+    return "本页没有原理图数据，而且导出它的 AD 脚本里没有原理图读取功能 —— 说明 AD 当前" +
+      "运行的是上一次编译好的旧脚本（AD 会缓存已编译的脚本，只在启动时重新读取）。\n" +
+      "处理办法：完全退出 Altium Designer（不是只关掉图纸），重新打开后再导出一次。\n" +
+      "重启后仍然为空，请复制下面的诊断回传。";
+  }
+  return "原理图读取器已经执行，但没有产出数据。请复制下面的诊断回传。";
+}
+
+/* Copy the whole explanation - the reason line plus the reader's notes - so a
+ * failure can be reported without transcribing a pane by hand. */
+function schemCopyDiag() {
+  var why = document.getElementById("schememptywhy");
+  var pre = document.getElementById("schemdiagtext");
+  var text = ((why && why.textContent) ? why.textContent + "\n\n" : "") +
+    ((pre && pre.textContent) ? pre.textContent : "");
+  var btn = document.getElementById("schemdiagcopy");
+  var done = function(okFlag) {
+    if (btn) btn.textContent = okFlag ? "已复制" : "请手动复制";
+  };
+  try {
+    if (typeof navigator != "undefined" && navigator.clipboard &&
+        navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function() { done(true); },
+        function() { done(schemCopyFallback(text)); });
+      return;
+    }
+  } catch (e) {}
+  done(schemCopyFallback(text));
+}
+
+/* The page is opened from file://, where the async clipboard API may be
+ * refused. Falls back to the textarea trick and, failing that, selects the
+ * block so Ctrl+C still works. */
+function schemCopyFallback(text) {
+  var okFlag = false;
+  try {
+    if (typeof document != "undefined" && document.body && document.createElement) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "readonly");
+      ta.style.position = "fixed";
+      ta.style.left = "-1000px";
+      document.body.appendChild(ta);
+      ta.select();
+      okFlag = document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+  } catch (e2) {
+    okFlag = false;
+  }
+  if (!okFlag) {
+    try {
+      var pre = document.getElementById("schemdiagtext");
+      if (pre && typeof window != "undefined" && window.getSelection &&
+          document.createRange) {
+        var r = document.createRange();
+        r.selectNodeContents(pre);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    } catch (e3) {}
+  }
+  return okFlag;
+}
+
+function ensureSchem() {
+  var empty = document.getElementById("schemempty");
+  if (!schemHasData) {
+    // No schematic: say why in the pane itself. The BOM keeps its own view and
+    // is never touched - the two panes are mutually exclusive.
+    var why = document.getElementById("schememptywhy");
+    if (why) why.textContent = schemExplainEmpty();
+    var pre = document.getElementById("schemdiagtext");
+    if (pre) pre.textContent = schemDiagLines().join("\n");
+    var btn = document.getElementById("schemdiagcopy");
+    if (btn) btn.textContent = "复制诊断";
+    if (empty) {
+      empty.style.display = "";
+      // Kept as a tooltip too: hovering used to be the only way to read it.
+      empty.title = schemDiagLines().join("\n");
+    }
+    var view = document.getElementById("schemview");
+    if (view) view.style.display = "none";
+    var bar = document.getElementById("schembar");
+    if (bar) bar.style.display = "none";
+    schemReady = false;
+    return;
+  }
+
+  if (empty) empty.style.display = "none";
+  var view2 = document.getElementById("schemview");
+  if (view2) view2.style.display = "";
+  var bar2 = document.getElementById("schembar");
+  if (bar2) bar2.style.display = "";
+
+  if (!schemBuilt) {
+    buildSchemContent();
+    schemBuilt = true;
+  } else {
+    schemShowSheet(schemCurrent >= 0 ? schemCurrent : 0);
+  }
+}
+
+function buildSchemContent() {
+  var view = document.getElementById("schemview");
+  view.innerHTML = "";
+  schemSheets = [];
+  schemRefIndex = {};
+  schemCurrent = 0;
+
+  for (var i = 0; i < schemData.sheets.length; i++) {
+    view.appendChild(schemBuildSheet(i));
+  }
+  schemBuildBar();
+  schemShowSheet(0);
+
+  // BOM row -> schematic. Registered once; harmless until the pane exists.
+  EventHandler.registerCallback(IBOM_EVENT_TYPES.HIGHLIGHT_EVENT, function(e) {
+    schemOnHighlight(e.args);
+  });
+
+  schemReady = true;
+
+  if (schemData.diag && schemData.diag.length) {
+    var note = document.getElementById("schemnote");
+    if (note) note.title = schemData.diag.join("\n");
+  }
+}
+
+function initSchem() {
+  if (!document.getElementById("schemdiv")) return;
+  schemData = (typeof pcbdata != "undefined" && pcbdata && pcbdata.schem) ?
+    pcbdata.schem : null;
+  schemHasData = !!(schemData && schemData.sheets && schemData.sheets.length > 0);
+  schemBuilt = false;
+  schemReady = false;
+  schemCurrent = -1;
+
+  // Default to the BOM; the schematic is reached through the top switch and
+  // built lazily so the SVG measures against a visible container.
+  changeLeftPane("bom");
+}
+</script>
+<script>/* Standalone bootstrap for the schematic-only export.
+ *
+ * This file is concatenated into the page after web/schem.js. schem.js only
+ * declares functions and module-scope globals (schemData, schemSheets, ...); it
+ * never runs anything at load time, so loading order is: page data -> schem.js
+ * -> this file. This file then sets the globals schem.js expects and drives the
+ * build, without the BOM switch the full ibom page uses (there is no BOM here).
+ *
+ * ES3 only (Altium-era JScript): no let/const, no arrow functions, no template
+ * literals, no trailing commas, no for...of. */
+
+/* Shims so buildSchemContent()'s EventHandler.registerCallback call is a no-op
+ * in this page - there is no BOM to cross-probe from here, so we simply ignore
+ * the subscription. They must exist before ensureSchem() runs. */
+var IBOM_EVENT_TYPES = { HIGHLIGHT_EVENT: "highlight" };
+var EventHandler = { registerCallback: function () {} };
+
+/* Designator search box: highlight every component whose reference designator
+ * contains the typed text (case-insensitive), and pan to the first match. */
+function schemSearch(v) {
+  v = String(v == null ? "" : v).trim().toUpperCase();
+  if (!v) {
+    schemHighlight([]);
+    return;
+  }
+  var refs = [];
+  if (typeof schemRefIndex != "undefined" && schemRefIndex) {
+    for (var k in schemRefIndex) {
+      if (!Object.prototype.hasOwnProperty.call(schemRefIndex, k)) continue;
+      if (String(k).toUpperCase().indexOf(v) >= 0) refs.push(k);
+    }
+  }
+  schemHighlight(refs);
+  if (refs.length) schemFocus(refs[0], true);
+}
+
+/* The only entry point the page needs. It mirrors initSchem() from schem.js but
+ * skips the "default to BOM" step, because a standalone page is schematic-only.
+ * It then calls ensureSchem(), which builds the SVG or explains why there is
+ * none. */
+function schemStandaloneInit() {
+  var div = document.getElementById("schemdiv");
+  if (!div) return;
+  schemData = (typeof pcbdata != "undefined" && pcbdata && pcbdata.schem) ?
+    pcbdata.schem : null;
+  schemHasData = !!(schemData && schemData.sheets && schemData.sheets.length > 0);
+  schemBuilt = false;
+  schemReady = false;
+  schemCurrent = -1;
+  // Show the schematic directly; ensureSchem does the rest.
+  ensureSchem();
+}
+
+if (typeof window != "undefined" && window.addEventListener) {
+  window.addEventListener("DOMContentLoaded", schemStandaloneInit);
+} else if (typeof document != "undefined") {
+  schemStandaloneInit();
+}
+</script>
+</body>
+</html>
