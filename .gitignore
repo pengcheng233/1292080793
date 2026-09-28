@@ -1,0 +1,18 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Logs
+*.log
+
+# Node tooling (not part of the shipped suite)
+node_modules/
+
+# IDE / editor folders
+.idea/
+.vscode/
+
+# Local scratch / test output (referenced in dev notes, not shipped)
+scratch/
